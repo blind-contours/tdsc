@@ -1,0 +1,202 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[numbers]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{microtype}
+
+\newtheorem{theorem}{Theorem}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Pn}{P_n}
+\newcommand{\ind}{\mathbf{1}}
+
+\title{Targeted Deep Survival Contrasts: Valid Inference for\\ Individualized Treatment Benefit with Neural Networks}
+\author{David McCoy$^{1}$ \and Yi Li$^{1}$ \and Mark J.\ van der Laan$^{1}$\\[4pt]
+\small $^1$Division of Biostatistics, University of California, Berkeley}
+\date{\small Draft --- \today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Clinical deployment of neural survival models increasingly requires \emph{predictive} claims---how much a treatment would change survival---not just prognostic risk scores. Such claims demand valid inference for counterfactual survival contrasts under confounding and covariate-dependent censoring, targets for which standard deep survival estimators are biased and provide no honest uncertainty. Building on Targeted Deep Architectures (TDA), which embeds TMLE in a network's weight space, we target the full vector of treatment-specific survival curves $\{S_1(t), S_0(t)\}$ over a time grid, and hence the benefit curve $S_1(t)-S_0(t)$ and the restricted mean survival time (RMST) difference. A single universal targeting update---a ridge projection of the stacked efficient influence functions onto closed-form last-layer gradients---debiases every coordinate at once, and a multiplier bootstrap yields simultaneous confidence bands for the whole benefit curve. In 200-replication simulations with confounded treatment, sign-varying effect heterogeneity, and censoring that depends on treatment and covariates, our estimator attains nominal pointwise coverage (95.6\%) and near-nominal simultaneous band coverage (94.0\%), with benefit-curve bias roughly a third of---and intervals 8\% narrower than---a per-timepoint one-step (AIPCW) correction built from the same nuisance fits at comparable coverage; an isotonized one-step closes none of this gap, so the gain reflects targeting itself rather than monotonicity. Nuisance-misspecification experiments delineate the method's scope: point-estimate double robustness survives a badly misspecified outcome network (with a one-step residual top-up), but the working-model intervals then undercover while the standard one-step stays valid---quantifying the price of superefficiency and when to prefer each estimator.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+Neural networks are now standard tools for individual-level survival prediction from rich clinical inputs, including digital pathology and other high-dimensional modalities. Clinical decisions, however, hinge on \emph{contrasts}: how survival would differ under one treatment versus another. Estimating such contrasts from observational data raises two familiar obstacles---confounding and outcome-dependent censoring mechanisms---and a less appreciated third: a network trained for predictive loss is a biased, inefficient estimator of any low-dimensional causal functional \citep{chernozhukov2018dml,shi2019dragonnet}, and its naive standard errors are invalid.
+
+Semiparametric theory offers the remedy: debias a flexible initial fit by solving the efficient influence function (EIF) equation, via one-step/AIPCW corrections \citep{chernozhukov2018dml,kennedy2024review} or targeted maximum likelihood estimation (TMLE) \citep{vdl2011tl}. For survival targets these tools are mature \citep{moore2009,cai2020,rytgaard2024}, but standard implementations correct \emph{outside} the model: the one-step adds the empirical mean of the EIF to a plug-in, and classical TMLE fluctuates the output distribution after training. Both become awkward when the target is a whole \emph{vector}---two survival curves on a fine grid---where per-coordinate corrections need not respect monotonicity and can push estimates off the model space. Targeted Deep Architectures (TDA) \citep{li2025tda} instead embeds the TMLE fluctuation \emph{inside} the network: a small targeting subset of weights is updated along the projection of the EIF onto per-sample loss gradients, so the fitted network itself is the debiased estimator. TDA was demonstrated for the average treatment effect and the marginal survival curve without treatment; the clinically decisive object---the causal contrast of treatment-specific survival curves under confounding and dependent censoring---was not addressed.
+
+\paragraph{Related work.} Neural estimators of treatment-specific survival curves exist---notably SurvITE \citep{curth2021survite}, which targets exactly our estimand with balanced discrete-time hazard networks, and counterfactual time-to-event models \citep{chapfuwa2021}---but they provide point estimates without valid confidence statements; that is the gap we fill. Conversely, survival TMLEs with simultaneous inference exist \citep{cai2020,rytgaard2024} but target the output distribution through analytic fluctuation submodels that become cumbersome for many coordinates and arbitrary architectures; TDA-style weight-space targeting is what removes that obstruction. Causal survival forests \citep{cui2023csf} give honest inference for conditional effects at fixed horizons rather than the full population benefit curve.
+
+\paragraph{Contributions.} We propose \emph{Targeted Deep Survival Contrasts} (TDSC): (1) the target vector $\Psi = (S_1(t_1),\dots,S_1(t_K), S_0(t_1),\dots,S_0(t_K))$ with its stacked EIFs combining treatment and censoring weights (Section~\ref{sec:setup}); (2) closed-form per-sample last-layer gradients for DragonNet-style hazard networks, making the universal TDA update for all $2K$ coordinates one ridge regression per iteration (Section~\ref{sec:method}); (3) simultaneous sup-$t$ bands for the benefit curve via multiplier bootstrap; (4) simulations with strong confounding, qualitative effect heterogeneity, and treatment- and covariate-dependent censoring, in which TDSC attains nominal coverage with lower bias and narrower intervals than the per-timepoint one-step built from identical nuisance estimates (Section~\ref{sec:sims}).
+
+\section{Setup, estimands, and efficient influence functions}\label{sec:setup}
+
+\paragraph{Data.} We observe $n$ i.i.d.\ copies of $O=(X, A, \tilde T, \Delta)$: covariates $X\in\mathbb{R}^d$, binary treatment $A\in\{0,1\}$, discrete follow-up time $\tilde T\in\{1,\dots,K\}$, event indicator $\Delta$. Time is coarsened into $K$ bins; within a bin, events are recorded before censoring, and subjects surviving bin $K$ are administratively censored. Let $Y(k)=\ind\{\tilde T\ge k\}$ (at risk) and $dN(k)=\ind\{\tilde T=k,\Delta=1\}$ (event), and write $\Pn f = n^{-1}\sum_i f(O_i)$. The likelihood factorizes through the propensity $g(X)=P(A=1\mid X)$, the event hazard $h(k\mid a,x)$, and the censoring hazard $h_c(k\mid a,x)$, with conditional survival $S(t\mid a,x)=\prod_{k\le t}\{1-h(k\mid a,x)\}$ and censoring survival $S_c$ defined analogously.
+
+\paragraph{Estimands.} Under consistency, no unmeasured confounding, coarsening-at-random censoring (censoring may depend on $A$ and $X$ but not further on the event time), and positivity for treatment and censoring, the treatment-specific curves
+$S_a(t) = \E_X[S(t \mid a, X)]$, $a\in\{0,1\}$, $t\in\{1,\dots,K\}$,
+are identified. Our target is the $2K$-vector $\Psi=(S_1(\cdot), S_0(\cdot))$; the \emph{benefit curve} $\beta(t)=S_1(t)-S_0(t)$ and the RMST difference $\Delta_{\mathrm{RMST}}=\sum_{t=1}^{K}\beta(t)$ (bin width one; the contrast in expected bins survived through horizon $K$) are linear in $\Psi$, so their influence functions follow by linearity.
+
+\paragraph{Efficient influence functions.} For each coordinate $S_a(t)$ the EIF at $P$ is the discrete-time analogue of \citet{moore2009}:
+\begin{equation}\label{eq:eif}
+D_{a,t}(O) \;=\; -\sum_{k=1}^{t} \frac{\ind\{A=a\}}{g_a(X)\, S_c(k-1\mid a, X)}\,\frac{S(t\mid a,X)}{S(k\mid a,X)}\Big(dN(k) - Y(k)\, h(k\mid a,X)\Big) \;+\; S(t\mid a,X) - S_a(t),
+\end{equation}
+with $g_1=g$, $g_0=1-g$. The first term is a weighted sum of martingale residuals---the within-bin ``surprise'' of an event relative to the fitted hazard---inversely weighted by the probability of receiving arm $a$ and remaining uncensored through bin $k-1$; the second is the plug-in centering term. Stacking \eqref{eq:eif} over $a$ and $t$ gives the $n\times 2K$ influence matrix $D$ whose column means $\Pn D_{a,t}$ are exactly the first-order bias terms that targeting drives to zero.
+
+\section{Targeted Deep Survival Contrasts}\label{sec:method}
+
+\paragraph{Architecture and initial fit.} We use a DragonNet-style network \citep{shi2019dragonnet} adapted to discrete-time survival: a shared trunk feeding a propensity head for $g$ and two outcome heads producing hazard logits $\{h(k\mid a, x)\}_{k=1}^{K}$ for $a\in\{0,1\}$, trained on the observed-arm discrete-time negative log-likelihood (masked per-bin binary cross-entropy) plus a propensity term, with early stopping. A separate network fits the censoring hazard. Any backbone---including a frozen foundation-model encoder with a trained head---can replace the trunk. Full architecture and hyperparameters are in Appendix~\ref{app:repro}.
+
+\paragraph{Targeting submodel and closed-form gradients.} Following TDA, the targeting parameters $\vartheta$ are the final linear layers of the two outcome heads, $p = 2K(F{+}1)$ parameters for head width $F$. Because those layers are linear in the head features $\phi_a(X)$ and the loss is a per-bin Bernoulli likelihood, the per-sample gradient is available in closed form:
+\begin{equation}\label{eq:grad}
+\frac{\partial \ell_i}{\partial W_a[k,\cdot]} = \ind\{A_i=a\}\, Y_i(k)\big(h(k\mid a, X_i) - dN_i(k)\big)\, \phi_a(X_i),
+\end{equation}
+and analogously for biases, giving the $n\times p$ score matrix $G$ in one vectorized pass with no per-sample automatic differentiation.
+
+\paragraph{Universal targeting update.} Each iteration solves one ridge system for all $2K$ targets, $\alpha = (G^\top G + \lambda I)^{-1} G^\top D$ (with $\lambda$ scaled to the mean diagonal of $G^\top G$; note $p>n$ here, so the ridge penalty is statistically active), giving per-target directions $\alpha_j$ and projected bias terms $d_j = \Pn[G\alpha_j]$. The universal direction is $\alpha^* = \sum_j (d_j/\|d\|_2)\, \alpha_j$ \citep[Sec.~2.3]{li2025tda}, applied as $\vartheta \leftarrow \vartheta - \gamma\,\alpha^*$ with a backtracking line search on $\sum_j(\Pn D_j)^2$. After each step the hazards and influence matrix are recomputed ($g$ and $S_c$ stay fixed); iteration stops when every $|\Pn D_j| \le \widehat{\mathrm{sd}}(D_j)/(\sqrt{n}\log n)$ or no step improves the criterion (in practice the line search typically exits first; Section~\ref{sec:sims} reports the resulting diagnostics). Two diagnostics are recorded: the relative projection residual $\|D - G\alpha\|/\|D\|$ (an empirical check of gradient coverage) and the final $\max_j |\Pn D_j|/\mathrm{tol}_j$; any coordinate left above tolerance can receive its residual $\Pn D_j$ as a one-step top-up, restoring an exactly solved EIF equation. The estimator is the plug-in from the targeted network---by construction a pair of monotone survival curves.
+
+\paragraph{Inference and simultaneous bands.} Coordinate standard errors are $\widehat{\mathrm{sd}}(D_j)/\sqrt n$ with $D$ evaluated at the final fit; contrasts inherit influence functions by linearity. For the benefit curve we report a sup-$t$ band: with i.i.d.\ standard normal multipliers $\xi_i$, the 95\% quantile $c^*$ of $\max_t |n^{-1}\sum_i \xi_i D_{\beta,t}(O_i)|/\widehat{\mathrm{se}}_t$ over bootstrap draws gives $\hat\beta(t) \pm c^*\widehat{\mathrm{se}}_t$ ($c^*$ floored at 1.96, a conservative choice).
+
+\paragraph{Theoretical guarantees, honestly stated.} TDSC is TDA applied to a $2K$-dimensional pathwise-differentiable target, so Theorems 3.1--3.2 of \citet{li2025tda}---specializations of adaptive debiased machine learning (ADML) \citep{vdl2023adml}---apply coordinate-wise with a joint CLT. Their conditions require: (T1) regularity of the loss and target; (T2) a first-order expansion, which TDA satisfies by construction \emph{provided sample splitting is used}; (T3) gradient coverage---the span of the final-layer scores approximates the oracle EIF---with controlled empirical-process terms; and (C1)--(C2) negligible oracle bias, under which coverage extends from the working parameter to the true $\Psi(P_0)$. Our implementation does \emph{not} cross-fit: nuisances, targeting directions, and the IF variance all use the full sample, so (T2) as stated is not met and finite-sample validity is supported here by simulation rather than theorem; a cross-fitted variant is mechanical and planned. Two further caveats. First, the EIF \eqref{eq:eif} is doubly robust---its bias correction survives misspecification of either the hazards or the weights $(g, S_c)$ jointly---but TDSC inherits this only insofar as targeting solves $\Pn D_j \approx 0$ (the residual top-up above restores it exactly), and consistent variance estimation still requires the relevant nuisances. Second, when $P_0$ is well-approximated by the working submodel, ADML yields \emph{superefficiency}: intervals narrower than the nonparametric bound. This is a real benefit in the simulations below, but it is not attainable uniformly over the model---and Section~\ref{sec:sims} quantifies the price: under gross outcome misspecification the working-model intervals undercover while the one-step's nonparametric intervals do not.
+
+\section{Simulation study}\label{sec:sims}
+
+\paragraph{Design.} Covariates $X\sim N(0, I_{10})$; treatment $A\mid X \sim \mathrm{Bern}(\mathrm{expit}(0.9X_1 - 0.7X_2 + 0.6X_3))$, truncated to $[0.05, 0.95]$; event hazard $h(k\mid a,x) = \mathrm{expit}(-3.1 + 2k/K + 0.7x_1 + 0.5x_2 + 0.4x_3 - 0.3x_4 + a\,\tau(x))$ with $\tau(x) = -1 + 0.8x_1 + 0.6x_3$, so the treatment effect changes sign across the population; censoring hazard $\mathrm{expit}(-3.6 + 0.5x_1 + 0.4x_2 + 0.4a + 0.3x_5)$, dependent on treatment and on covariates shared with the outcome (coarsening at random holds; unadjusted estimators are biased). We use $K=30$, $n=1000$ ($\approx$61\% events, 47\% treated in the demo replication). Ground truth is computed by exact integration over $4\times10^5$ covariate draws; the true $\Delta_{\mathrm{RMST}}$ is 5.45 bins.
+
+\paragraph{Estimators.} (i) \textbf{Naive plug-in}: the initial network's curves; (ii) \textbf{unadjusted Kaplan--Meier} by arm; (iii) \textbf{one-step (AIPCW)}: per-timepoint $\widehat\Psi_j^{\mathrm{plug}} + \Pn D_j$ at the initial fit, using the same nuisances as TDSC; (iv) \textbf{TDSC}, plus its residual top-up variant; (v) in the scenario grid below, an IPTW$\times$IPCW-weighted KM and an \emph{isotonized} one-step (each arm projected onto monotone curves), which separates how much of TDSC's advantage is explained by monotonicity alone. Causal survival forests and an output-space survival TMLE \citep{rytgaard2024} are the remaining planned comparators.
+
+\paragraph{Results.} Table~\ref{tab:main} reports time-averaged operating characteristics over 200 Monte Carlo replications (per-cell coverage MC SE $\approx$ 1.5 points). Four findings. First, adjustment is essential: unadjusted KM's absolute bias (0.121) is more than 50-fold TDSC's (0.0021), and its average $\Delta_{\mathrm{RMST}}$ misses the truth of 5.45 entirely. Second, the naive plug-in carries the regularization-induced bias that debiasing exists to remove (0.021; RMST bias $-0.38$). Third, on the benefit curve TDSC and the one-step both achieve nominal pointwise coverage (95.6\% vs 95.1\%), but TDSC does so with roughly a third of the bias (0.0021 vs 0.0057) and 8\% narrower intervals (0.140 vs 0.151); the MSE point estimates favor TDSC (0.00149 vs 0.00173), though the \emph{paired} replication-level MSE difference ($-0.00024$, MC SE $0.00026$) is not resolved at 200 replications. The narrower-at-nominal-coverage combination reflects the working-model efficiency of Section~\ref{sec:method}; the comparison does not isolate weight-space targeting per se from TMLE-versus-one-step, which the isotonized one-step and output-space TMLE comparators in the full study are designed to decompose. Fourth, the two estimators trade off differently on the RMST functional: TDSC is essentially unbiased ($0.007$ vs $-0.161$) but has higher variance, giving the one-step the lower RMST MSE (0.53 vs 0.79); both cover at $\approx$95--97\%. The simultaneous band covered the whole curve in 94.0\% of replications, with $c^*\approx 2.9$. Targeting averaged 9.1 iterations. Figure~\ref{fig:money} shows one replication (seed 7; representative---per-replication MAE rankings match the table).
+
+\paragraph{Nuisance misspecification and mechanism.} A second study (150 replications per arm; propensity fit by a standalone network throughout so the outcome and weight models can be blinded independently) stresses both arms of double robustness by hiding key covariates from one set of nuisances at a time (Table~\ref{tab:mis}). Three conclusions. \emph{Monotonicity is not the mechanism}: in the well-specified arm the isotonized one-step is indistinguishable from the raw one-step (MSE 0.00154 vs 0.00155), while TDSC's paired MSE advantage is now clearly resolved ($-0.00052$, MC SE $0.00009$)---the gain comes from targeting, not from projecting curves onto the monotone cone. \emph{Point-estimate double robustness holds, with a caveat}: blinding the outcome network to the main confounder and effect modifier explodes the naive plug-in (bias 0.19; RMST bias $-5.8$) while the EIF-corrected estimators remain nearly unbiased; blinding the weight models instead leaves both corrected estimators protected through the hazard arm while the weighting-only IPCW-KM fails (bias 0.076). \emph{Inference is not doubly robust, and TDSC pays first}: under outcome misspecification TDSC's working-model intervals undercover badly (64.6\%; top-up 84.3\%) while the one-step---whose wider intervals track the nonparametric variance---stays at 95.0\%; under weight misspecification both undercover mildly ($\approx$89\%) through the variance estimate. This is the empirical face of the superefficiency caveat of Section~\ref{sec:method}: TDSC's narrower intervals are trustworthy when the initial network is a reasonable fit, and the one-step is the safer instrument when it may not be. Diagnostics flag the failure in-sample: the mean number of coordinates left above tolerance rises from 37 (well-specified; nominal coverage regardless) to 55 (outcome-misspecified), and the strict $\mathrm{sd}/(\sqrt n \log n)$ tolerance is rarely met in full---the line search typically exits first---so we recommend reporting unsolved-coordinate counts and applying the residual top-up as defaults.
+
+\begin{table}[t]
+\centering
+\caption{Nuisance-misspecification grid, benefit curve ($n=1000$, $K=30$, 150 replications per arm). \emph{outcome mis.}: outcome hazards blinded to $x_1, x_3$; \emph{weights mis.}: propensity and censoring models blinded to $x_1, x_2$.}
+\label{tab:mis}
+\begin{tabular}{llcccc}
+\toprule
+Scenario & Estimator & Bias & MSE & Coverage & CI width \\
+\midrule
+well-specified & one-step            & 0.0051 & 0.00155 & 94.5\% & 0.144 \\
+               & one-step, isotonized& 0.0051 & 0.00154 & ---    & ---   \\
+               & TDSC                & \textbf{0.0036} & \textbf{0.00103} & 95.7\% & \textbf{0.135} \\
+\midrule
+outcome mis.   & naive plug-in       & 0.1922 & 0.04110 & ---    & ---   \\
+               & one-step            & 0.0135 & \textbf{0.00345} & \textbf{95.0\%} & 0.197 \\
+               & TDSC                & \textbf{0.0119} & 0.01860 & 64.6\% & 0.156 \\
+               & TDSC + top-up       & 0.0265 & 0.01325 & 84.3\% & 0.156 \\
+\midrule
+weights mis.   & IPCW-KM             & 0.0760 & 0.00720 & ---    & ---   \\
+               & one-step            & 0.0114 & 0.00111 & 89.4\% & 0.111 \\
+               & TDSC                & 0.0111 & 0.00114 & 89.2\% & 0.111 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Benefit curve $S_1(t)-S_0(t)$, time-averaged over 30 points ($n=1000$, $K=30$; 200 replications, coverage MC SE $\approx$ 1.5pp). Bias is mean absolute bias. The paired TDSC$-$one-step MSE difference is $-0.00024$ (MC SE $0.00026$).}
+\label{tab:main}
+\begin{tabular}{lcccc}
+\toprule
+ & Bias & MSE & Coverage (ptwise) & CI width \\
+\midrule
+Naive neural plug-in & 0.0213 & 0.0026 & --- & --- \\
+Unadjusted KM        & 0.1212 & 0.0163 & --- & --- \\
+One-step (AIPCW)     & 0.0057 & 0.0017 & 95.1\% & 0.151 \\
+TDSC (ours)          & \textbf{0.0021} & \textbf{0.0015} & 95.6\% & \textbf{0.140} \\
+\midrule
+$\Delta_{\mathrm{RMST}}$: one-step & bias $-$0.161 & MSE \textbf{0.53} & 96.5\% & 2.87 \\
+$\Delta_{\mathrm{RMST}}$: TDSC     & bias \textbf{0.007} & MSE 0.79 & 95.5\% & 2.69 \\
+\midrule
+TDSC simultaneous band & \multicolumn{2}{c}{coverage 94.0\% (whole curve)} & \multicolumn{2}{c}{band width 0.207} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.8\linewidth]{../figures/benefit_curve.png}
+\caption{One replication ($n=1000$, seed 7). The TDSC benefit curve tracks the truth, which lies inside both the pointwise CI and the simultaneous band; the naive plug-in drifts low at later times, and unadjusted KM is severely biased (wrong-signed at early times).}
+\label{fig:money}
+\end{figure}
+
+\section{Discussion}\label{sec:disc}
+
+TDSC turns a two-headed neural survival network into a valid estimator of population treatment benefit at the cost of a few ridge regressions after training, and the misspecification grid gives the method an honest operating envelope: prefer TDSC when the initial network fits well (narrower intervals at nominal coverage, gains not attributable to monotonicity), and fall back to the one-step---or TDSC's own residual top-up with nonparametric variance---when diagnostics (unsolved-coordinate counts, projection residuals) suggest otherwise. The remaining work: (i) cross-fitting, required by the inherited theory, absent from the current implementation, and made more urgent by the variance-estimation failures under misspecification; (ii) an output-space survival TMLE comparator to complete the mechanism decomposition, additional sample sizes, and sensitivity to the ridge penalty, targeting-layer choice, and weight-truncation levels (Appendix~\ref{app:repro}); (iii) \emph{calibration-for-benefit}---targeting arm-specific curves within strata of the network's own predicted benefit, the estimand used to validate individualized-benefit models against randomized trials---and application on frozen pretrained encoders (e.g.\ pathology foundation models), which the last-layer construction supports directly.
+
+\appendix
+\section{Reproducibility}\label{app:repro}
+All code, raw Monte Carlo stores, and the exact scripts behind every table are at \url{https://github.com/blind-contours/tdsc}. Networks: trunk $d\to64\to64$ (ELU); propensity head $64\to64\to1$; per-arm outcome heads $64\to64\to K$; censoring network $(d{+}1)\to64\to64\to(K{-}1)$. Training: full-batch Adam, lr $10^{-3}$, max 500 epochs, early stopping (patience 25) on a 20\% validation split, propensity loss weight 1.0. Targeting: ridge scale $\lambda = 0.01\times\mathrm{mean\,diag}(G^\top G)$; $\gamma_0=1$ with up to 12 halvings; max 50 iterations; tolerance $\widehat{\mathrm{sd}}(D_j)/(\sqrt n \log n)$. Truncation: $\hat g\in[0.05,0.95]$, $\hat S_c \ge 0.05$, conditional survival floored at $10^{-3}$ inside \eqref{eq:eif}. Bands: 1000 Gaussian-multiplier draws. No cross-fitting is used (Section~\ref{sec:method}). Truth: $4\times10^5$-draw exact integration.
+
+\bibliographystyle{plainnat}
+\begin{thebibliography}{12}
+
+\bibitem[Cai and van~der Laan(2020)]{cai2020}
+W.~Cai and M.~J. van~der Laan.
+\newblock One-step targeted maximum likelihood estimation for time-to-event outcomes.
+\newblock \emph{Biometrics}, 76(3):722--733, 2020.
+
+\bibitem[Chapfuwa et~al.(2021)]{chapfuwa2021}
+P.~Chapfuwa, S.~Assaad, S.~Zeng, M.~J. Pencina, L.~Carin, and R.~Henao.
+\newblock Enabling counterfactual survival analysis with balanced representations.
+\newblock In \emph{Proceedings of the Conference on Health, Inference, and Learning (CHIL)}, 2021.
+
+\bibitem[Chernozhukov et~al.(2018)]{chernozhukov2018dml}
+V.~Chernozhukov, D.~Chetverikov, M.~Demirer, E.~Duflo, C.~Hansen, W.~Newey, and J.~Robins.
+\newblock Double/debiased machine learning for treatment and structural parameters.
+\newblock \emph{The Econometrics Journal}, 21(1):C1--C68, 2018.
+
+\bibitem[Cui et~al.(2023)]{cui2023csf}
+Y.~Cui, M.~R. Kosorok, E.~Sverdrup, S.~Wager, and R.~Zhu.
+\newblock Estimating heterogeneous treatment effects with right-censored data via causal survival forests.
+\newblock \emph{Journal of the Royal Statistical Society: Series B}, 85(2):179--211, 2023.
+
+\bibitem[Curth et~al.(2021)]{curth2021survite}
+A.~Curth, C.~Lee, and M.~van~der Schaar.
+\newblock SurvITE: Learning heterogeneous treatment effects from time-to-event data.
+\newblock \emph{Advances in Neural Information Processing Systems}, 34, 2021.
+
+\bibitem[Kennedy(2024)]{kennedy2024review}
+E.~H. Kennedy.
+\newblock Semiparametric doubly robust targeted double machine learning: a review.
+\newblock In \emph{Handbook of Statistical Methods for Precision Medicine}. Chapman \& Hall/CRC, 2024.
+
+\bibitem[Li et~al.(2025)]{li2025tda}
+Y.~Li, D.~McCoy, N.~Gunter, K.~Lee, A.~Schuler, and M.~J. van~der Laan.
+\newblock Targeted deep architectures: A TMLE-based framework for robust causal inference in neural networks.
+\newblock \emph{arXiv preprint arXiv:2507.12435}, 2025.
+
+\bibitem[Moore and van~der Laan(2009)]{moore2009}
+K.~L. Moore and M.~J. van~der Laan.
+\newblock Increasing power in randomized trials with right censored outcomes through covariate adjustment.
+\newblock \emph{Journal of Biopharmaceutical Statistics}, 19(6):1099--1131, 2009.
+
+\bibitem[Rytgaard and van~der Laan(2024)]{rytgaard2024}
+H.~C.~W. Rytgaard and M.~J. van~der Laan.
+\newblock One-step targeted maximum likelihood estimation for targeting cause-specific absolute risks and survival curves.
+\newblock \emph{Biometrika}, 111(1):129--145, 2024.
+
+\bibitem[Shi et~al.(2019)]{shi2019dragonnet}
+C.~Shi, D.~Blei, and V.~Veitch.
+\newblock Adapting neural networks for the estimation of treatment effects.
+\newblock \emph{Advances in Neural Information Processing Systems}, 32, 2019.
+
+\bibitem[van~der Laan and Rose(2011)]{vdl2011tl}
+M.~J. van~der Laan and S.~Rose.
+\newblock \emph{Targeted Learning: Causal Inference for Observational and Experimental Data}.
+\newblock Springer, 2011.
+
+\bibitem[van~der Laan et~al.(2023)]{vdl2023adml}
+L.~van~der Laan, M.~Carone, A.~Luedtke, and M.~J. van~der Laan.
+\newblock Adaptive debiased machine learning using data-driven model selection techniques.
+\newblock \emph{arXiv preprint arXiv:2307.12544}, 2023.
+
+\end{thebibliography}
+
+\end{document}
