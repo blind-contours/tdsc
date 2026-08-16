@@ -62,8 +62,8 @@ contains the exact stores behind the paper's tables.
 - [x] 200-rep main study; 3×150-rep misspecification grid
 - [x] Mechanism comparators: isotonized one-step, IPCW-KM
 - [x] Convergence diagnostics + one-step residual top-up
+- [x] n-scaling (500/1000/2000) + safeguarded-variance analysis
 - [ ] Cross-fitted variant
 - [ ] Output-space survival TMLE and causal survival forest comparators
-- [ ] n-scaling (500/2000)
 - [ ] Calibration-within-predicted-benefit-strata targets
 - [ ] Frozen-trunk (foundation-model embedding) experiment
