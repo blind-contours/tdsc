@@ -44,13 +44,13 @@ def main():
         crit, _ = simultaneous_band(D_ben, seed=rep)
         out = dict(
             ben_cf=contrast_estimates(res["psi"])[0],
-            ben_cf_topup=contrast_estimates(res["psi_topup"])[0],
+            ben_cf_plug=contrast_estimates(res["psi_plug"])[0],
             se_ben_cf=if_se(D_ben),
             crit_cf=crit,
             rmst_cf=contrast_estimates(res["psi"])[1],
-            rmst_cf_topup=contrast_estimates(res["psi_topup"])[1],
+            rmst_cf_plug=contrast_estimates(res["psi_plug"])[1],
             se_rmst_cf=D_rmst.std(ddof=1) / np.sqrt(args.n),
-            mean_fold_unsolved=float(np.mean([d["unsolved"] for d in res["diags"]])),
+            mean_heldout_resid=float(np.mean([d["heldout_max_resid"] for d in res["diags"]])),
         )
         for k, v in out.items():
             store.setdefault(k, []).append(v)
@@ -64,16 +64,17 @@ def main():
     summary = {
         "benefit_curve": {
             "crossfit": summarize_curve(S["ben_cf"], ben_true, se=S["se_ben_cf"]),
-            "crossfit_topup": summarize_curve(S["ben_cf_topup"], ben_true, se=S["se_ben_cf"]),
+            "crossfit_plugin_only": summarize_curve(S["ben_cf_plug"], ben_true,
+                                                    se=S["se_ben_cf"]),
             "crossfit_simultaneous": summarize_curve(S["ben_cf"], ben_true,
                                                      se=S["se_ben_cf"], crit=S["crit_cf"]),
         },
         "rmst_diff": {
             "crossfit": summarize_scalar(S["rmst_cf"], truth["rmst_diff"], se=S["se_rmst_cf"]),
-            "crossfit_topup": summarize_scalar(S["rmst_cf_topup"], truth["rmst_diff"],
-                                               se=S["se_rmst_cf"]),
+            "crossfit_plugin_only": summarize_scalar(S["rmst_cf_plug"], truth["rmst_diff"],
+                                                     se=S["se_rmst_cf"]),
         },
-        "mean_fold_unsolved": float(S["mean_fold_unsolved"].mean()),
+        "mean_heldout_resid": float(S["mean_heldout_resid"].mean()),
         "reps": int(R),
     }
     # paired comparison vs the stored no-split run on shared data seeds
