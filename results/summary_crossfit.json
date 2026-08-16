@@ -1,0 +1,48 @@
+{
+  "benefit_curve": {
+    "crossfit": {
+      "bias": 0.008899832345305581,
+      "variance": 0.0024008046871120234,
+      "mse": 0.0024789819987003675,
+      "coverage_pointwise": 0.9553333333333336,
+      "ci_width": 0.18711252876760956
+    },
+    "crossfit_plugin_only": {
+      "bias": 0.004595999776829626,
+      "variance": 0.0010196869143112692,
+      "mse": 0.0010392155963835049,
+      "coverage_pointwise": 0.9780000000000001,
+      "ci_width": 0.18711252876760956
+    },
+    "crossfit_simultaneous": {
+      "bias": 0.008899832345305581,
+      "variance": 0.0024008046871120234,
+      "mse": 0.0024789819987003675,
+      "coverage_simultaneous": 0.94,
+      "band_width": 0.27718016291221853
+    }
+  },
+  "rmst_diff": {
+    "crossfit": {
+      "bias": -0.24846562929580518,
+      "variance": 0.8067190722364491,
+      "mse": 0.860387050455445,
+      "coverage": 0.95,
+      "ci_width": 3.449243385502176
+    },
+    "crossfit_plugin_only": {
+      "bias": -0.07295252355618942,
+      "variance": 0.4414553949526456,
+      "mse": 0.4423629116963353,
+      "coverage": 0.98,
+      "ci_width": 3.449243385502176
+    }
+  },
+  "mean_heldout_resid": 0.22122503150212566,
+  "reps": 100,
+  "paired_mse_diff_cf_minus_nosplit": {
+    "mean": 0.0013696475762169993,
+    "mc_se": 0.00021532917700949408,
+    "pairs": 100
+  }
+}
