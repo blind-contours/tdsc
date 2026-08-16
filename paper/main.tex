@@ -8,6 +8,11 @@
 \usepackage{microtype}
 
 \newtheorem{theorem}{Theorem}
+\newtheorem{assumption}{Assumption}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\Pn}{P_n}
 \newcommand{\ind}{\mathbf{1}}
@@ -60,9 +65,49 @@ and analogously for biases, giving the $n\times p$ score matrix $G$ in one vecto
 
 \paragraph{Universal targeting update.} Each iteration solves one ridge system for all $2K$ targets, $\alpha = (G^\top G + \lambda I)^{-1} G^\top D$ (with $\lambda$ scaled to the mean diagonal of $G^\top G$; note $p>n$ here, so the ridge penalty is statistically active), giving per-target directions $\alpha_j$ and projected bias terms $d_j = \Pn[G\alpha_j]$. The universal direction is $\alpha^* = \sum_j (d_j/\|d\|_2)\, \alpha_j$ \citep[Sec.~2.3]{li2025tda}, applied as $\vartheta \leftarrow \vartheta - \gamma\,\alpha^*$ with a backtracking line search on $\sum_j(\Pn D_j)^2$. After each step the hazards and influence matrix are recomputed ($g$ and $S_c$ stay fixed); iteration stops when every $|\Pn D_j| \le \widehat{\mathrm{sd}}(D_j)/(\sqrt{n}\log n)$ or no step improves the criterion (in our simulations the tolerance was never met in full; the line search exited first in every replication---Section~\ref{sec:sims} reports the diagnostics). Two diagnostics are recorded: the relative projection residual $\|D - G\alpha\|/\|D\|$ (an empirical check of gradient coverage) and the final $\max_j |\Pn D_j|/\mathrm{tol}_j$; any coordinate left above tolerance can receive its residual $\Pn D_j$ as a one-step top-up, restoring an exactly solved EIF equation. The estimator is the plug-in from the targeted network---by construction a pair of monotone survival curves.
 
+\paragraph{Cross-fitted variant.} To satisfy the sample-splitting premise of the theory below without Donsker conditions on the network class, TDSC admits a $V$-fold cross-fitted form (CV-TMLE structure): for each fold, the nuisance networks are trained on the complement, and the targeting step solves the EIF equations \emph{on the held-out fold}---gradients, influence functions, and plug-in all evaluated on data independent of the initial fit. Fold plug-ins are averaged; the pooled per-observation influence matrix supplies variance and bands. Both forms are implemented; Section~\ref{sec:sims} compares them empirically.
+
 \paragraph{Inference and simultaneous bands.} Coordinate standard errors are $\widehat{\mathrm{sd}}(D_j)/\sqrt n$ with $D$ evaluated at the final fit; contrasts inherit influence functions by linearity. For the benefit curve we report a sup-$t$ band: with i.i.d.\ standard normal multipliers $\xi_i$, the 95\% quantile $c^*$ of $\max_t |n^{-1}\sum_i \xi_i D_{\beta,t}(O_i)|/\widehat{\mathrm{se}}_t$ over bootstrap draws gives $\hat\beta(t) \pm c^*\widehat{\mathrm{se}}_t$ ($c^*$ floored at 1.96, a conservative choice).
 
-\paragraph{Theoretical guarantees, honestly stated.} TDSC is TDA applied to a $2K$-dimensional pathwise-differentiable target, so Theorems 3.1--3.2 of \citet{li2025tda}---specializations of adaptive debiased machine learning (ADML) \citep{vdl2023adml}---apply coordinate-wise with a joint CLT. Their conditions require: (T1) regularity of the loss and target; (T2) a first-order expansion, which TDA satisfies by construction \emph{provided sample splitting is used}; (T3) gradient coverage---the span of the final-layer scores approximates the oracle EIF---with controlled empirical-process terms; and (C1)--(C2) negligible oracle bias, under which coverage extends from the working parameter to the true $\Psi(P_0)$. Our implementation does \emph{not} cross-fit: nuisances, targeting directions, and the IF variance all use the full sample, so (T2) as stated is not met and finite-sample validity is supported here by simulation rather than theorem; a cross-fitted variant is mechanical and planned. Two further caveats. First, the EIF \eqref{eq:eif} is doubly robust---its bias correction survives misspecification of either the hazards or the weights $(g, S_c)$ jointly---but TDSC inherits this only insofar as targeting solves $\Pn D_j \approx 0$ (the residual top-up above restores it exactly), and consistent variance estimation still requires the relevant nuisances. Second, when $P_0$ is well-approximated by the working submodel, ADML yields \emph{superefficiency}: intervals narrower than the nonparametric bound. This is a real benefit in the simulations below, but it is not attainable uniformly over the model---and Section~\ref{sec:sims} quantifies the price: under gross outcome misspecification the working-model intervals undercover while the one-step's nonparametric intervals do not.
+\section{Theory}\label{sec:theory}
+
+TDSC is TDA applied to a $2K$-dimensional pathwise-differentiable target, and its guarantees specialize those of \citet[Thms.~3.1--3.2]{li2025tda} and adaptive debiased machine learning (ADML) \citep{vdl2023adml}. We state the specialization for the \emph{cross-fitted} implementation (Section~\ref{sec:method}; $V$-fold, nuisances trained out-of-fold, targeting and evaluation on the held-out fold), which satisfies the sample-splitting premise of those results without Donsker conditions on the network class. Let $M_n\subseteq\mathcal M$ be the working submodel induced by partially unfreezing $\vartheta$, $\Psi_n(P_0)=\Psi(\Pi_n P_0)$ the working parameter (projection of $P_0$ onto $M_n$), and $D_{0}$ the $2K$-vector of EIFs \eqref{eq:eif} at $P_0$.
+
+\begin{assumption}[Identification and positivity]\label{a:id}
+Consistency, no unmeasured confounding, coarsening-at-random censoring; and $\delta \le g_0(X) \le 1-\delta$, $S_{c,0}(K-1\mid a, X)\ge\delta$ a.s.\ for some $\delta>0$.
+\end{assumption}
+\begin{assumption}[Nuisance rates]\label{a:rates}
+The cross-fitted hazard and weight estimators satisfy $\|\hat h - h_0\|_{P_0}\big(\|\hat g - g_0\|_{P_0} + \|\hat S_c - S_{c,0}\|_{P_0}\big) = o_p(n^{-1/2})$, with all estimators respecting the bounds of Assumption~\ref{a:id}.
+\end{assumption}
+\begin{assumption}[Gradient coverage]\label{a:span}
+The $L^2(P_0)$-projection of each $D_{0,j}$ onto the span of the final-layer scores $\nabla_{\vartheta}\ell$ has residual $\epsilon_{n,j}$ with $\|\epsilon_{n,j}\|_{P_0}=o_p(1)$ and $(\Pn - P_0)\epsilon_{n,j} = o_p(n^{-1/2})$ for each $j$.
+\end{assumption}
+\begin{assumption}[EIF equations solved]\label{a:solved}
+$\max_j |\Pn D_j| = o_p(n^{-1/2})$ at the final fit (enforced exactly by the residual top-up).
+\end{assumption}
+
+\begin{theorem}[Joint asymptotic linearity]\label{thm:main}
+Under Assumptions~\ref{a:id}--\ref{a:solved}, the cross-fitted TDSC estimator satisfies, jointly in $\mathbb{R}^{2K}$,
+$\widehat\Psi - \Psi_n(P_0) = \Pn D_{0} + o_p(n^{-1/2})$, so $\sqrt n\,(\widehat\Psi - \Psi_n(P_0)) \rightsquigarrow N(0, \Sigma_0)$ with $\Sigma_0 = P_0 D_0 D_0^\top$. If additionally the ADML oracle-bias conditions hold ($\Psi(\Pi_n P_0)-\Psi(P_0)=o_p(n^{-1/2})$), the same expansion holds for the true $\Psi(P_0)$, and the limiting variance is no larger than the nonparametric efficiency bound (superefficiency when $P_0$ is well-approximated by $M_n$).
+\end{theorem}
+
+\begin{corollary}[Contrasts]\label{cor:contrasts}
+The benefit curve $\hat\beta(\cdot)$ and $\widehat\Delta_{\mathrm{RMST}}$ are asymptotically linear with influence functions $D_{1,t}-D_{0,t}$ and $\sum_t (D_{1,t}-D_{0,t})$, by linearity of both maps.
+\end{corollary}
+
+\begin{proposition}[Simultaneous band]\label{prop:band}
+Under the conditions of Theorem~\ref{thm:main}, the Gaussian-multiplier estimate of the $95\%$ quantile of $\max_t |\mathbb{G}_t|/\sigma_t$, for $\mathbb{G}$ the limiting Gaussian of Corollary~\ref{cor:contrasts}, is consistent, and the sup-$t$ band covers the whole working benefit curve with asymptotic probability $0.95$.
+\end{proposition}
+
+\begin{proposition}[Top-up restores double robustness]\label{prop:dr}
+The top-up estimator $\widehat\Psi^{+} = \widehat\Psi + \Pn \widehat D$ equals the AIPCW one-step evaluated at the targeted nuisances. Consequently, under Assumption~\ref{a:id} and standard convergence of the estimated nuisances to \emph{some} limits, $\widehat\Psi^{+}$ is consistent for $\Psi(P_0)$ if either the hazard limit equals $h_0$ or the weight limits equal $(g_0, S_{c,0})$ jointly---regardless of whether targeting converged.
+\end{proposition}
+
+Proof sketches are in Appendix~\ref{app:proofs}; they specialize the ADML arguments using the exact second-order remainder of the survival EIF (a telescoping identity), with cross-fitting controlling the empirical-process term.
+
+\begin{remark}[No-split implementation and scope]\label{rem:honest}
+Theorem~\ref{thm:main} covers the cross-fitted variant; the no-split implementation is not covered as stated (it violates the sample-splitting premise of TDA's first-order expansion), and its validity at moderate $n$ is an empirical matter---Section~\ref{sec:sims} finds nominal behavior at $n\ge1000$. Two further caveats. Double robustness of the \emph{point estimate} (Proposition~\ref{prop:dr}) does not extend to inference: consistent variance estimation still requires the relevant nuisances, and Section~\ref{sec:sims} quantifies the failure modes. Superefficiency likewise cuts both ways: narrower intervals when $M_n$ approximates $P_0$ well, undercoverage when it does not---the empirical price appears under outcome misspecification and at small $n$.
+\end{remark}
 
 \section{Simulation study}\label{sec:sims}
 
@@ -153,11 +198,23 @@ TDSC simultaneous band & \multicolumn{2}{c}{coverage 94.0\% (whole curve)} & \mu
 
 \section{Discussion}\label{sec:disc}
 
-TDSC turns a two-headed neural survival network into a valid estimator of population treatment benefit at the cost of a few ridge regressions after training, and the misspecification grid gives the method an honest operating envelope: prefer TDSC when the initial network fits well (narrower intervals at nominal coverage, gains not attributable to monotonicity; $n\gtrsim 1000$ in our design), and fall back when diagnostics (unsolved-coordinate counts, projection residuals) suggest otherwise or the sample is small---the safeguarded top-up repairs most of the coverage loss, but under gross outcome misspecification, and at $n=500$, only the one-step is fully reliable. The remaining work: (i) cross-fitting, required by the inherited theory, absent from the current implementation, and made more urgent by the variance-estimation failures under misspecification; (ii) an output-space survival TMLE comparator to complete the mechanism decomposition, additional sample sizes, and sensitivity to the ridge penalty, targeting-layer choice, and weight-truncation levels (Appendix~\ref{app:repro}); (iii) \emph{calibration-for-benefit}---targeting arm-specific curves within strata of the network's own predicted benefit, the estimand used to validate individualized-benefit models against randomized trials---and application on frozen pretrained encoders (e.g.\ pathology foundation models), which the last-layer construction supports directly.
+TDSC turns a two-headed neural survival network into a valid estimator of population treatment benefit at the cost of a few ridge regressions after training, and the misspecification grid gives the method an honest operating envelope: prefer TDSC when the initial network fits well (narrower intervals at nominal coverage, gains not attributable to monotonicity; $n\gtrsim 1000$ in our design), and fall back when diagnostics (unsolved-coordinate counts, projection residuals) suggest otherwise or the sample is small---the safeguarded top-up repairs most of the coverage loss, but under gross outcome misspecification, and at $n=500$, only the one-step is fully reliable. The remaining work: (i) evaluation of the cross-fitted variant (Sections~\ref{sec:method}--\ref{sec:theory}) across the misspecification and scaling grids, where the variance-estimation failures make its theoretical protection most relevant; (ii) an output-space survival TMLE comparator to complete the mechanism decomposition, additional sample sizes, and sensitivity to the ridge penalty, targeting-layer choice, and weight-truncation levels (Appendix~\ref{app:repro}); (iii) \emph{calibration-for-benefit}---targeting arm-specific curves within strata of the network's own predicted benefit, the estimand used to validate individualized-benefit models against randomized trials---and application on frozen pretrained encoders (e.g.\ pathology foundation models), which the last-layer construction supports directly.
 
 \appendix
 \section{Reproducibility}\label{app:repro}
 All code, raw Monte Carlo stores, and the exact scripts behind every table are at \url{https://github.com/blind-contours/tdsc}. Networks: trunk $d\to64\to64$ (ELU); propensity head $64\to64\to1$; per-arm outcome heads $64\to64\to K$; censoring network $(d{+}1)\to64\to64\to(K{-}1)$. Training: full-batch Adam, lr $10^{-3}$, max 500 epochs, early stopping (patience 25) on a 20\% validation split, propensity loss weight 1.0. Targeting: ridge scale $\lambda = 0.01\times\mathrm{mean\,diag}(G^\top G)$; $\gamma_0=1$ with up to 12 halvings; max 50 iterations; tolerance $\widehat{\mathrm{sd}}(D_j)/(\sqrt n \log n)$. Truncation: $\hat g\in[0.05,0.95]$, $\hat S_c \ge 0.05$, conditional survival floored at $10^{-3}$ inside \eqref{eq:eif}. Bands: 1000 Gaussian-multiplier draws. No cross-fitting is used (Section~\ref{sec:method}). Truth: $4\times10^5$-draw exact integration.
+
+\section{Proof sketches}\label{app:proofs}
+
+\paragraph{Theorem~\ref{thm:main}.} Write, per coordinate, the standard decomposition
+$\widehat\Psi_j - \Psi_{n,j}(P_0) = (\Pn - P_0)\widehat D_j + P_0 \widehat D_j + \Pn D_{0,j} - \Pn \widehat D_j + \Pn\widehat D_j$.
+Assumption~\ref{a:solved} makes $\Pn \widehat D_j = o_p(n^{-1/2})$. For the drift term, the survival EIF admits an \emph{exact} second-order remainder: using $S(k)=\prod_{j\le k}(1-h(j))$ and the telescoping identity
+$\prod_{k\le t}(1-\hat h(k)) - \prod_{k\le t}(1-h_0(k)) = \sum_{k\le t} S_0(k-1)\,\big(h_0(k)-\hat h(k)\big)\,\hat S(t)/\hat S(k)$,
+one verifies $P_0 \widehat D_j + \Psi_j(\hat P) - \Psi_j(P_0) = R_{2,j}$, where $R_{2,j}$ is a sum over $k\le t$ of integrals of $\{\hat h(k) - h_0(k)\}$ against $\{\hat g\hat S_c(k-1) - g_0 S_{c,0}(k-1)\}/\{\hat g \hat S_c(k-1)\}$-type differences; under the positivity bounds of Assumption~\ref{a:id}, Cauchy--Schwarz gives $|R_{2,j}| \lesssim \|\hat h - h_0\|_{P_0}(\|\hat g - g_0\|_{P_0} + \|\hat S_c - S_{c,0}\|_{P_0}) = o_p(n^{-1/2})$ by Assumption~\ref{a:rates} (this display also proves Proposition~\ref{prop:dr}: $R_2$ vanishes if either factor's limit is correct). For the empirical-process term, cross-fitting makes $\widehat D_j$ independent of the fold on which $(\Pn-P_0)$ is evaluated, so conditional on the training folds, $(\Pn - P_0)(\widehat D_j - D_{0,j}) = o_p(n^{-1/2})$ whenever $\|\widehat D_j - D_{0,j}\|_{P_0} = o_p(1)$, which follows from the nuisance consistency in Assumption~\ref{a:rates} and the gradient-coverage residual control in Assumption~\ref{a:span} (the targeted fluctuation moves $\vartheta$ within the score span, so the perturbation of $\widehat D_j$ is controlled by the same projection). Summing folds yields the coordinate-wise expansion; joint convergence follows from the multivariate CLT applied to the stacked $D_0$. The extension to $\Psi(P_0)$ and the (super)efficiency statement are Theorem 6/7 of \citet{vdl2023adml} specialized as in \citet{li2025tda}.
+
+\paragraph{Corollary~\ref{cor:contrasts} and Proposition~\ref{prop:band}.} Both maps are bounded linear in $\Psi$, so asymptotic linearity transfers with the transformed influence functions. Given joint normality with consistently estimated $\Sigma_0$ (IF second moments), the conditional multiplier process $n^{-1/2}\sum_i \xi_i \widehat D_{\beta,t}(O_i)$ converges weakly to the same Gaussian limit (conditional multiplier CLT), so its sup-quantile is consistent for the sup-quantile of the limit; the $c^*\ge1.96$ floor only enlarges the band.
+
+\paragraph{Proposition~\ref{prop:dr}.} By definition $\widehat\Psi^{+}_j = \Pn[\hat S(t\mid a, X)] + \Pn \widehat D_j$, which is precisely the AIPCW one-step at nuisances $(\hat h^{\mathrm{targ}}, \hat g, \hat S_c)$. Its population bias is the $R_2$ term above evaluated at those limits, which vanishes under either-arm consistency. \hfill$\square$
 
 \bibliographystyle{plainnat}
 \begin{thebibliography}{12}
