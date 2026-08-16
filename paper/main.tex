@@ -6,6 +6,10 @@
 \usepackage[numbers]{natbib}
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
 \usepackage{microtype}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc}
 
 \newtheorem{theorem}{Theorem}
 \newtheorem{assumption}{Assumption}
@@ -57,13 +61,104 @@ with $g_1=g$, $g_0=1-g$. The first term is a weighted sum of martingale residual
 
 \paragraph{Architecture and initial fit.} We use a DragonNet-style network \citep{shi2019dragonnet} adapted to discrete-time survival: a shared trunk feeding a propensity head for $g$ and two outcome heads producing hazard logits $\{h(k\mid a, x)\}_{k=1}^{K}$ for $a\in\{0,1\}$, trained on the observed-arm discrete-time negative log-likelihood (masked per-bin binary cross-entropy) plus a propensity term, with early stopping. A separate network fits the censoring hazard. Any backbone---including a frozen foundation-model encoder with a trained head---can replace the trunk. Full architecture and hyperparameters are in Appendix~\ref{app:repro}.
 
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners=2pt, minimum height=7mm, minimum width=17mm, font=\footnotesize, align=center},
+  frozen/.style={box, fill=gray!12},
+  targ/.style={box, fill=orange!25, thick},
+  lab/.style={font=\scriptsize\itshape},
+  arr/.style={-{Stealth[length=2mm]}, semithick}]
+\node[frozen] (X) {$X$};
+\node[frozen, right=9mm of X] (trunk) {trunk};
+\node[frozen, above right=2mm and 10mm of trunk] (g) {propensity\\head $\hat g$};
+\node[frozen, right=10mm of trunk] (phi1) {head$_1$\\$\phi_1$};
+\node[frozen, below=2.5mm of phi1] (phi0) {head$_0$\\$\phi_0$};
+\node[targ, right=8mm of phi1] (W1) {$W_1, b_1$};
+\node[targ, right=8mm of phi0] (W0) {$W_0, b_0$};
+\node[frozen, right=8mm of W1] (h1) {$\hat h(k\mid 1,x)$};
+\node[frozen, right=8mm of W0] (h0) {$\hat h(k\mid 0,x)$};
+\node[frozen, below=8mm of phi0] (cens) {censoring net $\to \hat S_c$};
+\node[box, fill=blue!10, right=10mm of $(h1.east)!0.5!(h0.east)$, minimum width=22mm] (eif) {stacked EIFs\\$D \in \mathbb{R}^{n\times 2K}$};
+\draw[arr] (X) -- (trunk);
+\draw[arr] (trunk) -- (g);
+\draw[arr] (trunk) -- (phi1);
+\draw[arr] (trunk) -- (phi0);
+\draw[arr] (phi1) -- (W1);
+\draw[arr] (phi0) -- (W0);
+\draw[arr] (W1) -- (h1);
+\draw[arr] (W0) -- (h0);
+\draw[arr] (h1.east) -- (eif.west|-h1.east);
+\draw[arr] (h0.east) -- (eif.west|-h0.east);
+\draw[arr] (g.east) .. controls +(14mm,0mm) .. (eif.north);
+\draw[arr] (cens.east) .. controls +(22mm,0mm) .. (eif.south);
+\draw[arr, dashed, orange!70!black, very thick]
+  (eif.north) .. controls +(0,15mm) and +(10mm,13mm) .. node[above, lab, text=orange!70!black]{targeting update $-\gamma\alpha^\ast$ (ridge-projected EIFs)} (W1.north);
+\draw[arr, dashed, orange!70!black, very thick]
+  (eif.south) .. controls +(-2mm,-14mm) and +(12mm,-9mm) .. (W0.south);
+\node[lab, below=1mm of X] {frozen after training: gray};
+\node[lab, below=0mm of cens, xshift=0mm] {targeted: orange};
+\end{tikzpicture}
+\caption{TDSC pipeline. A DragonNet-style survival network produces per-arm hazards; the propensity head and a separate censoring network supply the weights inside the stacked EIFs. Only the final linear layers $(W_a, b_a)$ are updated, along the universal direction obtained by ridge-projecting all $2K$ EIFs onto their closed-form per-sample gradients; everything else stays frozen.}
+\label{fig:pipeline}
+\end{figure}
+
 \paragraph{Targeting submodel and closed-form gradients.} Following TDA, the targeting parameters $\vartheta$ are the final linear layers of the two outcome heads, $p = 2K(F{+}1)$ parameters for head width $F$. Because those layers are linear in the head features $\phi_a(X)$ and the loss is a per-bin Bernoulli likelihood, the per-sample gradient is available in closed form:
 \begin{equation}\label{eq:grad}
 \frac{\partial \ell_i}{\partial W_a[k,\cdot]} = \ind\{A_i=a\}\, Y_i(k)\big(h(k\mid a, X_i) - dN_i(k)\big)\, \phi_a(X_i),
 \end{equation}
 and analogously for biases, giving the $n\times p$ score matrix $G$ in one vectorized pass with no per-sample automatic differentiation.
 
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=1.05, arr/.style={-{Stealth[length=2.2mm]}, thick}, lab/.style={font=\scriptsize}]
+% score span (plane)
+\draw[fill=orange!12, draw=orange!60!black]
+  (-3.1,-0.9) -- (2.4,-1.5) -- (4.0,0.4) -- (-1.5,1.0) -- cycle;
+\node[lab, orange!70!black] at (2.6,-1.05) {$\mathrm{span}\{\nabla_{\vartheta}\ell(O_i)\}$};
+% origin
+\coordinate (O) at (0,-0.25);
+\fill (O) circle (1.4pt);
+\node[lab, below left=0mm of O] {$\hat\vartheta$};
+% EIF vector off-plane
+\coordinate (D) at (1.7,1.9);
+\draw[arr, blue!70!black] (O) -- (D) node[above, lab, text=blue!70!black] {$\widetilde D$ (stacked EIFs)};
+% projection in-plane
+\coordinate (P) at (2.1,0.12);
+\draw[arr, orange!80!black, very thick] (O) -- (P) node[below right=0mm and -2mm, lab, text=orange!80!black] {$D^{\ast}_{\mathrm{proj}} = \alpha^{\ast\top}\nabla_{\vartheta}\ell$};
+% residual
+\draw[dashed, gray] (D) -- (P);
+\node[lab, gray, rotate=-62] at (2.22,1.1) {residual $\epsilon_n$ (A\ref{a:span})};
+% iterative path along plane
+\draw[arr, orange!80!black, densely dotted, semithick]
+  (O) .. controls (0.8,-0.15) and (1.4,0.02) .. (1.95,0.09);
+\node[lab, orange!80!black] at (0.35,-1.15) {targeting steps $-\gamma\alpha^{\ast}$};
+% target set
+\fill[orange!80!black] (1.95,0.09) circle (1.3pt);
+\node[lab] at (3.0,0.62) {$\Pn D \approx 0$};
+\end{tikzpicture}
+\caption{Geometry of the targeting update. The stacked influence functions $\widetilde D$ are projected onto the span of the per-sample loss gradients of the targeting parameters; TDSC steps $\vartheta$ along the projected direction until the empirical EIF equations hold. The projection residual $\epsilon_n$ is observable and is exactly the gradient-coverage quantity of Assumption~\ref{a:span}: a large residual warns that the last-layer span cannot represent the needed correction (the outcome-misspecified regime of Section~\ref{sec:sims}).}
+\label{fig:geometry}
+\end{figure}
+
 \paragraph{Universal targeting update.} Each iteration solves one ridge system for all $2K$ targets, $\alpha = (G^\top G + \lambda I)^{-1} G^\top D$ (with $\lambda$ scaled to the mean diagonal of $G^\top G$; note $p>n$ here, so the ridge penalty is statistically active), giving per-target directions $\alpha_j$ and projected bias terms $d_j = \Pn[G\alpha_j]$. The universal direction is $\alpha^* = \sum_j (d_j/\|d\|_2)\, \alpha_j$ \citep[Sec.~2.3]{li2025tda}, applied as $\vartheta \leftarrow \vartheta - \gamma\,\alpha^*$ with a backtracking line search on $\sum_j(\Pn D_j)^2$. After each step the hazards and influence matrix are recomputed ($g$ and $S_c$ stay fixed); iteration stops when every $|\Pn D_j| \le \widehat{\mathrm{sd}}(D_j)/(\sqrt{n}\log n)$ or no step improves the criterion (in our simulations the tolerance was never met in full; the line search exited first in every replication---Section~\ref{sec:sims} reports the diagnostics). Two diagnostics are recorded: the relative projection residual $\|D - G\alpha\|/\|D\|$ (an empirical check of gradient coverage) and the final $\max_j |\Pn D_j|/\mathrm{tol}_j$; any coordinate left above tolerance can receive its residual $\Pn D_j$ as a one-step top-up, restoring an exactly solved EIF equation. The estimator is the plug-in from the targeted network---by construction a pair of monotone survival curves.
+
+\begin{algorithm}[t]
+\caption{TDSC universal targeting (no-split form)}
+\label{alg:tdsc}
+\begin{algorithmic}[1]
+\Require trained hazard/propensity network and censoring network; targeting parameters $\vartheta$ (final layers of the outcome heads); ridge scale $\lambda$; tolerances $\eta_j = \widehat{\mathrm{sd}}(D_j)/(\sqrt n \log n)$
+\State fix weights $\hat g, \hat S_c$; compute hazards $\hat h_a$, survival curves, and stacked EIFs $D\in\mathbb{R}^{n\times2K}$ via \eqref{eq:eif}
+\While{$\max_j |\Pn D_j| > \eta_j$}
+    \State $G \gets$ per-sample loss gradients w.r.t.\ $\vartheta$ \Comment{closed form \eqref{eq:grad}; no autograd}
+    \State $\alpha \gets (G^\top G + \lambda I)^{-1} G^\top D$ \Comment{one ridge solve for all $2K$ targets}
+    \State $d_j \gets \Pn[G\alpha_j]$; \quad $\alpha^\ast \gets \sum_j (d_j / \lVert d\rVert_2)\, \alpha_j$ \Comment{universal direction}
+    \State backtracking line search: $\vartheta \gets \vartheta - \gamma\,\alpha^\ast$, accepting only if $\sum_j (\Pn D_j)^2$ falls; \textbf{break} if no $\gamma$ improves
+    \State recompute $\hat h_a$, curves, and $D$ at the updated $\vartheta$
+\EndWhile
+\State \Return plug-ins $\widehat\Psi_j$; optional residual top-up $+\,\Pn D_j$ for coordinates above tolerance; SEs $\widehat{\mathrm{sd}}(D_j)/\sqrt n$; multiplier-bootstrap band; diagnostics ($\lVert D - G\alpha\rVert/\lVert D\rVert$, unsolved-coordinate count)
+\end{algorithmic}
+\end{algorithm}
 
 \paragraph{Cross-fitted variant.} To satisfy the sample-splitting premise of the theory below without Donsker conditions on the network class, TDSC admits a $V$-fold cross-fitted form: for each fold, the nuisance networks are trained \emph{and targeted} on the complement; the held-out fold then supplies evaluation---plug-in curves, influence functions at the targeted fit, and an exact residual correction $P_{n,v}[D]$ so the EIF equations hold exactly on held-out data (by Proposition~\ref{prop:dr}, a cross-fitted one-step at the targeted nuisances). Fold contributions are averaged; the pooled per-observation influence matrix supplies variance and bands.
 
