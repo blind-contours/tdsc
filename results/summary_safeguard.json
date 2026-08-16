@@ -1,0 +1,80 @@
+{
+ "well": {
+  "tda_working_se": {
+   "cov_ptwise": 0.9571111111111111,
+   "ci_width": 0.13495111271734725,
+   "rmst_cov": 0.9666666666666667,
+   "rmst_width": 2.6097432100469495
+  },
+  "tda_nonpar_se": {
+   "cov_ptwise": 0.9622222222222222,
+   "ci_width": 0.14439664877220112,
+   "rmst_cov": 0.98,
+   "rmst_width": 2.7559516655301772
+  },
+  "topup_nonpar_se": {
+   "cov_ptwise": 0.952,
+   "ci_width": 0.14439664877220112,
+   "rmst_cov": 0.9666666666666667,
+   "rmst_width": 2.7559516655301772
+  },
+  "onestep_nonpar_se": {
+   "cov_ptwise": 0.9451111111111111,
+   "ci_width": 0.14439664877220112,
+   "rmst_cov": 0.9466666666666667,
+   "rmst_width": 2.7559516655301772
+  }
+ },
+ "outcome_mis": {
+  "tda_working_se": {
+   "cov_ptwise": 0.6457777777777778,
+   "ci_width": 0.15561939181503778,
+   "rmst_cov": 0.6,
+   "rmst_width": 3.4818450861394283
+  },
+  "tda_nonpar_se": {
+   "cov_ptwise": 0.72,
+   "ci_width": 0.1969523695438069,
+   "rmst_cov": 0.7,
+   "rmst_width": 4.48980190369812
+  },
+  "topup_nonpar_se": {
+   "cov_ptwise": 0.8875555555555555,
+   "ci_width": 0.1969523695438069,
+   "rmst_cov": 0.84,
+   "rmst_width": 4.48980190369812
+  },
+  "onestep_nonpar_se": {
+   "cov_ptwise": 0.9497777777777778,
+   "ci_width": 0.1969523695438069,
+   "rmst_cov": 0.9133333333333333,
+   "rmst_width": 4.48980190369812
+  }
+ },
+ "weights_mis": {
+  "tda_working_se": {
+   "cov_ptwise": 0.8924444444444445,
+   "ci_width": 0.11055629914180282,
+   "rmst_cov": 0.9,
+   "rmst_width": 2.255885770832892
+  },
+  "tda_nonpar_se": {
+   "cov_ptwise": 0.8926666666666667,
+   "ci_width": 0.11081670868757697,
+   "rmst_cov": 0.9,
+   "rmst_width": 2.260312281706101
+  },
+  "topup_nonpar_se": {
+   "cov_ptwise": 0.8895555555555555,
+   "ci_width": 0.11081670868757697,
+   "rmst_cov": 0.8866666666666667,
+   "rmst_width": 2.260312281706101
+  },
+  "onestep_nonpar_se": {
+   "cov_ptwise": 0.8942222222222223,
+   "ci_width": 0.11081670868757697,
+   "rmst_cov": 0.9,
+   "rmst_width": 2.260312281706101
+  }
+ }
+}
