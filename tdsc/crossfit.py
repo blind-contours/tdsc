@@ -19,7 +19,8 @@ import numpy as np
 import torch
 
 from .influence import eif_matrix, plugin_estimates
-from .model import nuisances, person_bin_arrays, train_censnet, train_dragonsurv
+from .model import (nuisances, person_bin_arrays, train_censnet,
+                    train_dragonsurv, train_propnet)
 from .targeting import _gradient_matrix, tda_target
 
 
@@ -28,9 +29,16 @@ def _subset(data, idx):
                 Delta=data["Delta"][idx], K=data["K"])
 
 
-def tda_crossfit(data, V=5, seed=0, epochs=500, ridge=1e-2, max_iter=50):
+def tda_crossfit(data, V=5, seed=0, epochs=500, ridge=1e-2, max_iter=50,
+                 cols_out=None, cols_w=None):
     """Returns pooled psi (2K,) = plug-in + exact held-out residual correction,
-    the plug-in-only variant, pooled IF matrix D (n, 2K), and diagnostics."""
+    the plug-in-only variant, pooled IF matrix D (n, 2K), and diagnostics.
+
+    cols_out / cols_w blind the outcome vs weight models to covariate subsets
+    (nuisance-misspecification scenarios). Whenever a mask is set, the
+    propensity comes from a standalone per-fold network on cols_w (the trunk
+    head would inherit the outcome mask); with no masks the legacy trunk-head
+    propensity is used, matching the well-specified stores."""
     n = data["X"].shape[0]
     K = data["K"]
     rng = np.random.default_rng(seed)
@@ -45,13 +53,19 @@ def tda_crossfit(data, V=5, seed=0, epochs=500, ridge=1e-2, max_iter=50):
     for v, va_idx in enumerate(folds):
         tr_idx = np.setdiff1d(perm, va_idx, assume_unique=True)
         data_tr, data_va = _subset(data, tr_idx), _subset(data, va_idx)
-        net = train_dragonsurv(data_tr, max_epochs=epochs, seed=seed * 100 + v)
-        censnet = train_censnet(data_tr, max_epochs=epochs, seed=seed * 100 + v + 50)
+        net = train_dragonsurv(data_tr, max_epochs=epochs, seed=seed * 100 + v,
+                               cols=cols_out)
+        censnet = train_censnet(data_tr, max_epochs=epochs, seed=seed * 100 + v + 50,
+                                cols=cols_w)
+        propnet = None
+        if cols_out is not None or cols_w is not None:
+            propnet = train_propnet(data_tr, max_epochs=epochs,
+                                    seed=seed * 100 + v + 70, cols=cols_w)
         # target on the SAME out-of-fold data the nuisances were trained on
-        _, _, g_tr, Sc_tr = nuisances(net, censnet, data_tr)
+        _, _, g_tr, Sc_tr = nuisances(net, censnet, data_tr, propnet=propnet)
         res_tr = tda_target(net, data_tr, g_tr, Sc_tr, ridge=ridge, max_iter=max_iter)
         # evaluate on the held-out fold: plug-in, IFs, exact residual correction
-        h1_va, h0_va, g_va, Sc_va = nuisances(net, censnet, data_va)
+        h1_va, h0_va, g_va, Sc_va = nuisances(net, censnet, data_va, propnet=propnet)
         at_risk, dN = person_bin_arrays(data_va["Ttil"], data_va["Delta"], K)
         D_va = eif_matrix(data_va["A"], at_risk, dN, h1_va, h0_va, g_va, Sc_va)
         # working-submodel (projected) EIFs on the held-out fold, using the

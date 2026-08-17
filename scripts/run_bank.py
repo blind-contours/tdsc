@@ -87,7 +87,8 @@ def run_rep(rep, args, cfg):
     out["tda_max_pnd_full"] = float(np.max(np.abs(res["final_pnd"])))
 
     if args.cf:
-        cf = tda_crossfit(data, V=args.V, seed=rep, epochs=args.epochs)
+        cf = tda_crossfit(data, V=args.V, seed=rep, epochs=args.epochs,
+                          cols_out=cfg["cols_out"], cols_w=cfg["cols_w"])
         curve_entry(out, "cf_topup", cf["psi"], D=cf["D"], band_seed=rep + 4)
         curve_entry(out, "cf_plug", cf["psi_plug"], D=cf["D"])
         curve_entry(out, "cf_plug_projse", cf["psi_plug"], D_for_se=cf["D_proj"])
