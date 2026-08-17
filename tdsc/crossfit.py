@@ -16,10 +16,11 @@ results/mc_crossfit_foldtarget.npz. Do not target on small validation folds
 with a high-dimensional targeting submodel.
 """
 import numpy as np
+import torch
 
 from .influence import eif_matrix, plugin_estimates
 from .model import nuisances, person_bin_arrays, train_censnet, train_dragonsurv
-from .targeting import tda_target
+from .targeting import _gradient_matrix, tda_target
 
 
 def _subset(data, idx):
@@ -37,6 +38,7 @@ def tda_crossfit(data, V=5, seed=0, epochs=500, ridge=1e-2, max_iter=50):
     folds = np.array_split(perm, V)
 
     D_all = np.empty((n, 2 * K))
+    D_proj_all = np.empty((n, 2 * K))
     psi = np.zeros(2 * K)
     psi_plug = np.zeros(2 * K)
     diags = []
@@ -52,13 +54,23 @@ def tda_crossfit(data, V=5, seed=0, epochs=500, ridge=1e-2, max_iter=50):
         h1_va, h0_va, g_va, Sc_va = nuisances(net, censnet, data_va)
         at_risk, dN = person_bin_arrays(data_va["Ttil"], data_va["Delta"], K)
         D_va = eif_matrix(data_va["A"], at_risk, dN, h1_va, h0_va, g_va, Sc_va)
+        # working-submodel (projected) EIFs on the held-out fold, using the
+        # training-fold projection coefficients alpha
+        with torch.no_grad():
+            phi1_va, phi0_va = net.features(
+                torch.as_tensor(data_va["X"], dtype=torch.float32))
+        G_va = _gradient_matrix(data_va["A"], at_risk, dN, h1_va, h0_va,
+                                phi1_va.numpy().astype(np.float64),
+                                phi0_va.numpy().astype(np.float64))
+        D_proj_va = G_va @ res_tr["alpha"]
         plug_v = plugin_estimates(h1_va, h0_va)
         resid_v = D_va.mean(axis=0)
         w = len(va_idx) / n
         psi_plug += w * plug_v
         psi += w * (plug_v + resid_v)          # one-step at targeted nuisances
         D_all[va_idx] = D_va
+        D_proj_all[va_idx] = D_proj_va
         diags.append(dict(fold=v, iters=len(res_tr["history"]),
                           train_converged=bool(res_tr["converged"]),
                           heldout_max_resid=float(np.max(np.abs(resid_v)))))
-    return dict(psi=psi, psi_plug=psi_plug, D=D_all, diags=diags)
+    return dict(psi=psi, psi_plug=psi_plug, D=D_all, D_proj=D_proj_all, diags=diags)

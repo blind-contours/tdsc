@@ -11,9 +11,17 @@ and zero for the other arm's head.
 
 Each iteration: ridge-project each target's IF onto the gradient span
 (one shared Gram solve for all targets), merge directions with the universal
-weights w_k = d_k / ||d||_2 (arXiv:2507.12435, Sec 2.3), take a line-searched
-step, recompute nuisance hazards + IFs, and stop when every |P_n D_k| is below
-sd(D_k)/(sqrt(n) log n) or the criterion stops improving.
+weights w_j = d_j / ||d||_2 (arXiv:2507.12435, Sec 2.3), take a line-searched
+step, and recompute nuisance hazards + IFs.
+
+Stopping criterion (TDA-faithful): convergence is assessed on the PROJECTED
+EIF means P_n[D_proj,j] -- the estimating equations of the working submodel,
+which the restricted parameterization can actually solve -- with tolerance
+sd(D_proj,j)/(sqrt(n) log n). The FULL-EIF means P_n[D_j] are tracked as the
+diagnostic feeding the one-step residual top-up (they need not vanish inside
+a restricted submodel; their projection residual is the gradient-coverage
+quantity). The line search minimizes the projected criterion with the
+projection coefficients alpha held fixed within the iteration.
 """
 import numpy as np
 import torch
@@ -76,50 +84,65 @@ def tda_target(net, data, g, Sc_lag, ridge=1e-2, max_iter=50, gamma0=1.0,
 
     history = []
     converged = False
+    alpha = None
+    D_proj = None
     h1, h0 = _hazards(net, X_t)
     D = eif_matrix(A, at_risk, dN, h1, h0, g, Sc_lag)
     for it in range(max_iter):
-        d = D.mean(axis=0)
-        tol = D.std(axis=0, ddof=1) / (np.sqrt(n) * np.log(n))
-        crit = float(np.sum(d ** 2))
-        history.append(dict(iter=it, max_abs_pnd=float(np.max(np.abs(d))), crit=crit))
-        if verbose:
-            print(f"  TDA it {it}: max|PnD| {np.max(np.abs(d)):.5f}, crit {crit:.3e}")
-        if np.all(np.abs(d) <= tol):
-            converged = True
-            break
-
         G = _gradient_matrix(A, at_risk, dN, h1, h0, phi1, phi0)
         Gram = G.T @ G
         lam = ridge * np.mean(np.diag(Gram)) + 1e-10
         Gram[np.diag_indices_from(Gram)] += lam
         alpha = np.linalg.solve(Gram, G.T @ D)          # (p, 2K), all targets at once
-        # gradient-coverage diagnostic: relative projection residual
-        history[-1]["proj_resid_rel"] = float(
-            np.linalg.norm(D - G @ alpha) / np.linalg.norm(D))
-        d_proj = (G @ alpha).mean(axis=0)               # P_n[D_proj,k]
+        D_proj = G @ alpha                              # working-submodel EIFs (n, 2K)
+        d_proj = D_proj.mean(axis=0)
+        tol_proj = D_proj.std(axis=0, ddof=1) / (np.sqrt(n) * np.log(n))
+        crit = float(np.sum(d_proj ** 2))
+        history.append(dict(
+            iter=it, crit=crit,
+            max_abs_pnd_proj=float(np.max(np.abs(d_proj))),
+            max_abs_pnd_full=float(np.max(np.abs(D.mean(axis=0)))),
+            proj_resid_rel=float(np.linalg.norm(D - D_proj) / np.linalg.norm(D))))
+        if verbose:
+            print(f"  TDA it {it}: max|PnDproj| {np.max(np.abs(d_proj)):.5f}, "
+                  f"crit {crit:.3e}")
+        if np.all(np.abs(d_proj) <= tol_proj):
+            converged = True
+            break
         norm = np.linalg.norm(d_proj)
         if norm < 1e-12:
             break
         w = d_proj / norm
         direction = alpha @ w                           # universal direction (p,)
 
-        # backtracking line search on sum_k (P_n D_k)^2
+        # backtracking line search on the projected criterion, alpha held fixed
         gamma, accepted = gamma0, False
         for _ in range(max_halvings):
             _apply_step(net, direction, gamma, K, F)
             h1_new, h0_new = _hazards(net, X_t)
-            D_new = eif_matrix(A, at_risk, dN, h1_new, h0_new, g, Sc_lag)
-            crit_new = float(np.sum(D_new.mean(axis=0) ** 2))
+            G_new = _gradient_matrix(A, at_risk, dN, h1_new, h0_new, phi1, phi0)
+            crit_new = float(np.sum((G_new @ alpha).mean(axis=0) ** 2))
             if crit_new < crit:
-                h1, h0, D, accepted = h1_new, h0_new, D_new, True
+                h1, h0 = h1_new, h0_new
+                D = eif_matrix(A, at_risk, dN, h1, h0, g, Sc_lag)
+                accepted = True
                 break
             _apply_step(net, direction, -gamma, K, F)   # undo, halve
             gamma *= 0.5
         if not accepted:
             break
-    d = D.mean(axis=0)
-    tol = D.std(axis=0, ddof=1) / (np.sqrt(n) * np.log(n))
-    converged = converged or bool(np.all(np.abs(d) <= tol))
-    return dict(h1=h1, h0=h0, D=D, history=history, converged=converged,
-                final_pnd=d, final_tol=tol)
+    # refresh the projection at the final fit so D_proj/alpha match (h1, h0)
+    G = _gradient_matrix(A, at_risk, dN, h1, h0, phi1, phi0)
+    Gram = G.T @ G
+    lam = ridge * np.mean(np.diag(Gram)) + 1e-10
+    Gram[np.diag_indices_from(Gram)] += lam
+    alpha = np.linalg.solve(Gram, G.T @ D)
+    D_proj = G @ alpha
+    d_proj = D_proj.mean(axis=0)
+    tol_proj = D_proj.std(axis=0, ddof=1) / (np.sqrt(n) * np.log(n))
+    converged = converged or bool(np.all(np.abs(d_proj) <= tol_proj))
+    d_full = D.mean(axis=0)
+    tol_full = D.std(axis=0, ddof=1) / (np.sqrt(n) * np.log(n))
+    return dict(h1=h1, h0=h0, D=D, D_proj=D_proj, alpha=alpha, history=history,
+                converged=converged, final_pnd_proj=d_proj, final_tol_proj=tol_proj,
+                final_pnd=d_full, final_tol=tol_full)

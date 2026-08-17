@@ -87,7 +87,7 @@ def tda(net, censnet, data, propnet=None, ridge=1e-2, max_iter=50,
     if residual_correction:
         unsolved = np.abs(res["final_pnd"]) > res["final_tol"]
         psi = psi + unsolved * res["final_pnd"]
-    return dict(psi=psi, D=res["D"], history=res["history"],
+    return dict(psi=psi, D=res["D"], D_proj=res["D_proj"], history=res["history"],
                 converged=res["converged"], final_pnd=res["final_pnd"],
-                final_tol=res["final_tol"],
+                final_tol=res["final_tol"], final_pnd_proj=res["final_pnd_proj"],
                 init=dict(h1=h1_init, h0=h0_init, g=g, Sc_lag=Sc_lag))

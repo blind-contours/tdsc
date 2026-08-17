@@ -30,6 +30,62 @@ def _logit(p):
     return np.log(p / (1.0 - p))
 
 
+def universal_ostmle(data, h1, h0, g, Sc_lag, max_iter=200, step_clip=0.5):
+    """Universal one-dimensional output-space TMLE for all 2K targets at once.
+
+    The output-space analogue of TDSC's universal update, in the spirit of the
+    universal least-favorable submodels of Cai & van der Laan (2020) and the
+    one-step TMLE of Rytgaard & van der Laan (2024): a single epsilon-path
+    whose direction at each step is the P_n D-weighted combination of the
+    per-target clever covariates,
+
+        Hbar_a(k, x) = -[1/(g_a S_c(k-1) S(k|a,x))] * sum_{t >= k} w_{a,t} S(t|a,x),
+
+    computed by suffix sums. Both arms' hazards move along the shared epsilon;
+    the fitted object stays a coherent, monotone pair of survival curves and
+    the empirical EIF equations are solved jointly (the output-space score
+    span saturates, so full-EIF convergence is attainable here).
+
+    Returns psi (2K,), D (n, 2K) at the fluctuated fit, and n_iters.
+    """
+    A, K = data["A"], data["K"]
+    n = h1.shape[0]
+    at_risk, dN = person_bin_arrays(data["Ttil"], data["Delta"], K)
+    h = {1: h1.copy(), 0: h0.copy()}
+    ga = {1: g, 0: 1.0 - g}
+    ind = {a: (A == a).astype(np.float64) for a in (1, 0)}
+    from .influence import eif_matrix
+    it = 0
+    for it in range(1, max_iter + 1):
+        D = eif_matrix(A, at_risk, dN, h[1], h[0], g, Sc_lag)
+        d = D.mean(axis=0)
+        tol = D.std(axis=0, ddof=1) / (np.sqrt(n) * np.log(n))
+        if np.all(np.abs(d) <= tol):
+            break
+        wgt = d / np.linalg.norm(d)
+        Hbar, score, info = {}, 0.0, 0.0
+        for a in (1, 0):
+            S = survival_from_hazards(h[a])
+            w_a = wgt[:K] if a == 1 else wgt[K:]
+            suffix = np.cumsum((w_a[None, :] * S)[:, ::-1], axis=1)[:, ::-1]
+            Hbar[a] = -suffix / (np.clip(S, 1e-3, None)
+                                 * np.clip(Sc_lag, 1e-3, None) * ga[a][:, None])
+            resid = at_risk * (dN - h[a])
+            score += float(np.sum(ind[a][:, None] * Hbar[a] * resid))
+            info += float(np.sum(ind[a][:, None] * at_risk * Hbar[a] ** 2
+                                 * h[a] * (1.0 - h[a])))
+        if info < 1e-12:
+            break
+        eps = np.clip(score / info, -step_clip, step_clip)
+        for a in (1, 0):
+            h[a] = _expit(_logit(h[a]) + eps * Hbar[a])
+    D = eif_matrix(A, at_risk, dN, h[1], h[0], g, Sc_lag)
+    S1 = survival_from_hazards(h[1])
+    S0 = survival_from_hazards(h[0])
+    psi = np.concatenate([S1.mean(axis=0), S0.mean(axis=0)])
+    return psi, D, it
+
+
 def ostmle_curve(data, h1, h0, g, Sc_lag, max_iter=25, tol_scale=True):
     """Per-timepoint output-space TMLE for all 2K targets.
 
