@@ -70,9 +70,11 @@ def tda_crossfit(data, V=5, seed=0, epochs=500, ridge=1e-2, max_iter=50,
         D_va = eif_matrix(data_va["A"], at_risk, dN, h1_va, h0_va, g_va, Sc_va)
         # working-submodel (projected) EIFs on the held-out fold, using the
         # training-fold projection coefficients alpha
+        X_va_t = torch.as_tensor(data_va["X"], dtype=torch.float32)
+        if getattr(net, "cols", None) is not None:
+            X_va_t = X_va_t[:, net.cols]
         with torch.no_grad():
-            phi1_va, phi0_va = net.features(
-                torch.as_tensor(data_va["X"], dtype=torch.float32))
+            phi1_va, phi0_va = net.features(X_va_t)
         G_va = _gradient_matrix(data_va["A"], at_risk, dN, h1_va, h0_va,
                                 phi1_va.numpy().astype(np.float64),
                                 phi0_va.numpy().astype(np.float64))

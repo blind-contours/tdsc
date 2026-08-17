@@ -1,0 +1,55 @@
+
+%%%%% outcome_mis_linear_n1000_K30  (reps=100, scenario=outcome_mis, design=linear, n=1000, K=30) %%%%%
+% columns: bias & mc_sd & mean_se & mse & cov & width [& simult]
+Naive neural plug-in             & 0.1904 & 0.0436 & nan & 0.04028 & --- & --- \\
+Unadjusted KM                    & 0.1225 & 0.0300 & nan & 0.01665 & --- & --- \\
+IPTW$\times$IPCW KM              & 0.0132 & 0.0435 & nan & 0.00218 & --- & --- \\
+One-step (AIPCW)                 & 0.0107 & 0.0544 & 0.0492 & 0.00329 & 94.2\% & 0.193 & 95.0\% \\
+One-step, isotonized             & 0.0100 & 0.0530 & nan & 0.00310 & --- & --- \\
+Output-space TMLE (per-$t$)      & 0.0115 & 0.0446 & 0.0381 & 0.00223 & 89.3\% & 0.149 \\
+Output-space TMLE (universal)    & 0.0155 & 0.0436 & 0.0378 & 0.00226 & 88.7\% & 0.148 & 86.0\% \\
+TDSC plug-in (full-EIF SE)       & 0.0915 & 0.0351 & 0.0449 & 0.01004 & 44.2\% & 0.176 & 31.0\% \\
+TDSC plug-in (working SE)        & 0.0915 & 0.0351 & 0.0383 & 0.01004 & 33.1\% & 0.150 & 15.0\% \\
+TDSC + full top-up               & 0.0063 & 0.0489 & 0.0449 & 0.00256 & 93.6\% & 0.176 \\
+CF plug-in (full-EIF SE)         & 0.0037 & 0.0308 & 0.0478 & 0.00098 & 98.5\% & 0.188 \\
+CF plug-in (working SE)          & 0.0037 & 0.0308 & 0.0395 & 0.00098 & 97.7\% & 0.155 \\
+CF top-up                        & 0.0080 & 0.0477 & 0.0478 & 0.00243 & 95.6\% & 0.188 & 97.0\% \\
+% RMST bias / cov: cf_plug=-0.035/98%; cf_plug_projse=-0.035/97%; cf_topup=-0.222/96%; ipcw=+0.394; km=-3.676; naive=-5.711; os=+0.293/89%; os_iso=+0.270; ostmle_pt=-0.341/86%; ostmle_uni=-0.465/84%; tda=-2.746/19%; tda_projse=-2.746/10%; tda_topup=+0.141/90%
+% diagnostics: {"tda_converged_proj": 0.03, "tda_iters": 49.36, "tda_proj_resid_rel": 0.4083807781311585, "tda_max_pnd_full": 0.09853249418200916, "uni_iters": 71.88}
+% safeguard (topup +/- one-step SE): cov 95.2%, width 0.193
+
+%%%%% weights_mis_linear_n1000_K30  (reps=150, scenario=weights_mis, design=linear, n=1000, K=30) %%%%%
+% columns: bias & mc_sd & mean_se & mse & cov & width [& simult]
+Naive neural plug-in             & 0.0222 & 0.0464 & nan & 0.00286 & --- & --- \\
+Unadjusted KM                    & 0.1220 & 0.0301 & nan & 0.01651 & --- & --- \\
+IPTW$\times$IPCW KM              & 0.0760 & 0.0331 & nan & 0.00720 & --- & --- \\
+One-step (AIPCW)                 & 0.0114 & 0.0306 & 0.0283 & 0.00111 & 89.4\% & 0.111 & 84.7\% \\
+One-step, isotonized             & 0.0114 & 0.0306 & nan & 0.00111 & --- & --- \\
+Output-space TMLE (per-$t$)      & 0.0115 & 0.0315 & 0.0282 & 0.00117 & 88.8\% & 0.111 \\
+Output-space TMLE (universal)    & 0.0116 & 0.0316 & 0.0282 & 0.00118 & 88.7\% & 0.110 & 84.0\% \\
+TDSC plug-in (full-EIF SE)       & 0.0096 & 0.0308 & 0.0282 & 0.00108 & 90.1\% & 0.110 & 87.3\% \\
+TDSC plug-in (working SE)        & 0.0096 & 0.0308 & 0.0277 & 0.00108 & 89.7\% & 0.108 & 88.0\% \\
+TDSC + full top-up               & 0.0103 & 0.0313 & 0.0282 & 0.00113 & 89.3\% & 0.110 \\
+% RMST bias / cov: ipcw=-2.281; km=-3.660; naive=-0.412; os=-0.037/90%; os_iso=-0.037; ostmle_pt=-0.045/89%; ostmle_uni=-0.078/89%; tda=-0.014/89%; tda_projse=-0.014/89%; tda_topup=-0.024/89%
+% diagnostics: {"tda_converged_proj": 0.1, "tda_iters": 49.22666666666667, "tda_proj_resid_rel": 0.2461651084008207, "tda_max_pnd_full": 0.011110067302633088, "uni_iters": 73.63333333333334}
+
+%%%%% well_linear_n1000_K30  (reps=100, scenario=well, design=linear, n=1000, K=30) %%%%%
+% columns: bias & mc_sd & mean_se & mse & cov & width [& simult]
+Naive neural plug-in             & 0.0252 & 0.0510 & nan & 0.00352 & --- & --- \\
+Unadjusted KM                    & 0.1225 & 0.0300 & nan & 0.01665 & --- & --- \\
+IPTW$\times$IPCW KM              & 0.0132 & 0.0435 & nan & 0.00218 & --- & --- \\
+One-step (AIPCW)                 & 0.0063 & 0.0387 & 0.0361 & 0.00158 & 93.8\% & 0.142 & 92.0\% \\
+One-step, isotonized             & 0.0063 & 0.0387 & nan & 0.00157 & --- & --- \\
+Output-space TMLE (per-$t$)      & 0.0042 & 0.0349 & 0.0341 & 0.00127 & 92.5\% & 0.134 \\
+Output-space TMLE (universal)    & 0.0059 & 0.0346 & 0.0334 & 0.00128 & 91.7\% & 0.131 & 91.0\% \\
+TDSC plug-in (full-EIF SE)       & 0.0045 & 0.0313 & 0.0340 & 0.00102 & 94.8\% & 0.133 & 95.0\% \\
+TDSC plug-in (working SE)        & 0.0045 & 0.0313 & 0.0320 & 0.00102 & 93.9\% & 0.126 & 94.0\% \\
+TDSC + full top-up               & 0.0044 & 0.0344 & 0.0340 & 0.00122 & 93.5\% & 0.133 \\
+CF plug-in (full-EIF SE)         & 0.0037 & 0.0308 & 0.0478 & 0.00098 & 98.5\% & 0.188 \\
+CF plug-in (working SE)          & 0.0037 & 0.0308 & 0.0395 & 0.00098 & 97.7\% & 0.155 \\
+CF top-up                        & 0.0080 & 0.0477 & 0.0478 & 0.00243 & 95.6\% & 0.188 & 97.0\% \\
+% RMST bias / cov: cf_plug=-0.035/98%; cf_plug_projse=-0.035/97%; cf_topup=-0.222/96%; ipcw=+0.394; km=-3.676; naive=-0.522; os=-0.143/94%; os_iso=-0.143; ostmle_pt=+0.126/93%; ostmle_uni=-0.068/95%; tda=-0.041/97%; tda_projse=-0.041/95%; tda_topup=-0.052/96%
+% diagnostics: {"tda_converged_proj": 0.02, "tda_iters": 49.88, "tda_proj_resid_rel": 0.2739779682653298, "tda_max_pnd_full": 0.018455745236262838, "uni_iters": 78.21}
+
+%%%%% CSF (legacy comparator study; data identical) %%%%%
+% csf: bias 0.0183 mse 0.00130 cov 89.2% width 0.114
