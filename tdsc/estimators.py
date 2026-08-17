@@ -76,17 +76,16 @@ def tda(net, censnet, data, propnet=None, ridge=1e-2, max_iter=50,
         residual_correction=False, verbose=False):
     """Full TDSC estimator: universal targeting, then plug-in + final EIFs.
 
-    residual_correction=True adds the leftover P_n[D_k] one-step-style to any
-    coordinate whose EIF equation was not solved to tolerance, restoring exact
-    double robustness of the point estimate when targeting stalls.
+    residual_correction=True adds the FULL leftover P_n[D] one-step-style
+    (the full-residual top-up of the paper's Proposition 2), making the
+    estimator exactly the AIPCW one-step at the targeted nuisances.
     """
     h1_init, h0_init, g, Sc_lag = nuisances(net, censnet, data, propnet=propnet)
     res = tda_target(net, data, g, Sc_lag, ridge=ridge, max_iter=max_iter,
                      verbose=verbose)
     psi = plugin_estimates(res["h1"], res["h0"])
     if residual_correction:
-        unsolved = np.abs(res["final_pnd"]) > res["final_tol"]
-        psi = psi + unsolved * res["final_pnd"]
+        psi = psi + res["final_pnd"]
     return dict(psi=psi, D=res["D"], D_proj=res["D_proj"], history=res["history"],
                 converged=res["converged"], final_pnd=res["final_pnd"],
                 final_tol=res["final_tol"], final_pnd_proj=res["final_pnd_proj"],

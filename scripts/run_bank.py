@@ -76,7 +76,7 @@ def run_rep(rep, args, cfg):
     curve_entry(out, "ostmle_uni", psi_uni, D=D_uni, band_seed=rep + 1)
     out["uni_iters"] = float(uni_iters)
 
-    res = tda(net, censnet, data, propnet=propnet)
+    res = tda(net, censnet, data, propnet=propnet, ridge=args.ridge)
     curve_entry(out, "tda", res["psi"], D=res["D"], band_seed=rep + 2)
     curve_entry(out, "tda_projse", res["psi"], D_for_se=res["D_proj"],
                 band_seed=rep + 3)
@@ -139,6 +139,8 @@ def main():
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--cf", action="store_true")
     ap.add_argument("--V", type=int, default=5)
+    ap.add_argument("--ridge", type=float, default=1e-2,
+                    help="relative ridge for the targeting projection")
     ap.add_argument("--tag", default=None)
     args = ap.parse_args()
     cfg = SCENARIOS[args.scenario]
