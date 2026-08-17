@@ -255,7 +255,7 @@ weights mis.   & one-step (AIPCW)     & 0.0114 & \textbf{0.00111} & 89.4\% & 0.1
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\linewidth]{../figures/comparators.png}
+\includegraphics[width=0.95\linewidth]{figures/comparators.png}
 \caption{Head-to-head comparison across nuisance scenarios (benefit-curve MSE, log scale; pointwise coverage, 95\% dashed). The three same-nuisance estimators order one-step $\to$ output-space TMLE $\to$ TDSC when well-specified; under outcome misspecification the weight-space update is the most exposed while the one-step alone stays nominal. The causal survival forest (own nuisances, horizons 5--25) appears as the dotted reference.}
 \label{fig:comp}
 \end{figure}
@@ -328,7 +328,7 @@ TDSC simultaneous band & \multicolumn{2}{c}{coverage 94.0\% (whole curve)} & \mu
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.8\linewidth]{../figures/benefit_curve.png}
+\includegraphics[width=0.8\linewidth]{figures/benefit_curve.png}
 \caption{One replication ($n=1000$, seed 7). The TDSC benefit curve tracks the truth, which lies inside both the pointwise CI and the simultaneous band; the naive plug-in drifts low at later times, and unadjusted KM is severely biased (wrong-signed at early times).}
 \label{fig:money}
 \end{figure}
@@ -363,79 +363,66 @@ gives $R_{2,j}$ as a sum over $k\le t$ of integrals of $\{\hat h(k) - h_0(k)\}$ 
 W.~Cai and M.~J. van~der Laan.
 \newblock One-step targeted maximum likelihood estimation for time-to-event outcomes.
 \newblock \emph{Biometrics}, 76(3):722--733, 2020.
-\newblock \url{https://doi.org/10.1111/biom.13172}.
 
 \bibitem[Chapfuwa et~al.(2021)]{chapfuwa2021}
 P.~Chapfuwa, S.~Assaad, S.~Zeng, M.~J. Pencina, L.~Carin, and R.~Henao.
 \newblock Enabling counterfactual survival analysis with balanced representations.
 \newblock In \emph{Proceedings of the Conference on Health, Inference, and Learning (CHIL)}, 2021.
-\newblock \url{https://doi.org/10.1145/3450439.3451875}.
 
 \bibitem[Chernozhukov et~al.(2018)]{chernozhukov2018dml}
 V.~Chernozhukov, D.~Chetverikov, M.~Demirer, E.~Duflo, C.~Hansen, W.~Newey, and J.~Robins.
 \newblock Double/debiased machine learning for treatment and structural parameters.
 \newblock \emph{The Econometrics Journal}, 21(1):C1--C68, 2018.
-\newblock \url{https://doi.org/10.1111/ectj.12097}.
 
 \bibitem[Cui et~al.(2023)]{cui2023csf}
 Y.~Cui, M.~R. Kosorok, E.~Sverdrup, S.~Wager, and R.~Zhu.
 \newblock Estimating heterogeneous treatment effects with right-censored data via causal survival forests.
 \newblock \emph{Journal of the Royal Statistical Society: Series B}, 85(2):179--211, 2023.
-\newblock \url{https://doi.org/10.1093/jrsssb/qkac001}.
 
 \bibitem[Curth et~al.(2021)]{curth2021survite}
 A.~Curth, C.~Lee, and M.~van~der Schaar.
 \newblock SurvITE: Learning heterogeneous treatment effects from time-to-event data.
 \newblock \emph{Advances in Neural Information Processing Systems}, 34, 2021.
-\newblock \url{https://proceedings.neurips.cc/paper/2021/hash/e0eacd983971634327ae1819ea8b6214-Abstract.html}.
 
 \bibitem[Kennedy(2024)]{kennedy2024review}
 E.~H. Kennedy.
 \newblock Semiparametric doubly robust targeted double machine learning: a review.
 \newblock In \emph{Handbook of Statistical Methods for Precision Medicine}. Chapman \& Hall/CRC, 2024.
-\newblock \url{https://arxiv.org/abs/2203.06469}.
 
 \bibitem[Li et~al.(2025)]{li2025tda}
 Y.~Li, D.~McCoy, N.~Gunter, K.~Lee, A.~Schuler, and M.~J. van~der Laan.
 \newblock Targeted deep architectures: A TMLE-based framework for robust causal inference in neural networks.
 \newblock \emph{arXiv preprint arXiv:2507.12435}, 2025.
-\newblock \url{https://arxiv.org/abs/2507.12435}.
 
 \bibitem[Moore and van~der Laan(2009)]{moore2009}
 K.~L. Moore and M.~J. van~der Laan.
 \newblock Increasing power in randomized trials with right censored outcomes through covariate adjustment.
 \newblock \emph{Journal of Biopharmaceutical Statistics}, 19(6):1099--1131, 2009.
-\newblock \url{https://doi.org/10.1080/10543400903243017}.
 
 \bibitem[Rytgaard and van~der Laan(2024)]{rytgaard2024}
 H.~C.~W. Rytgaard and M.~J. van~der Laan.
 \newblock One-step targeted maximum likelihood estimation for targeting cause-specific absolute risks and survival curves.
 \newblock \emph{Biometrika}, 111(1):129--145, 2024.
-\newblock \url{https://doi.org/10.1093/biomet/asad033}.
 
 \bibitem[Shi et~al.(2019)]{shi2019dragonnet}
 C.~Shi, D.~Blei, and V.~Veitch.
 \newblock Adapting neural networks for the estimation of treatment effects.
 \newblock \emph{Advances in Neural Information Processing Systems}, 32, 2019.
-\newblock \url{https://proceedings.neurips.cc/paper/2019/hash/8fb5f8be2aa9d6c64a04e3ab9f63feee-Abstract.html}.
 
 \bibitem[Zheng and van~der Laan(2011)]{zheng2011cvtmle}
 W.~Zheng and M.~J. van~der Laan.
 \newblock Cross-validated targeted minimum-loss-based estimation.
 \newblock In \emph{Targeted Learning: Causal Inference for Observational and Experimental Data}, pages 459--474. Springer, 2011.
-\newblock \url{https://doi.org/10.1007/978-1-4419-9782-1_27}.
 
 \bibitem[van~der Laan and Rose(2011)]{vdl2011tl}
 M.~J. van~der Laan and S.~Rose.
 \newblock \emph{Targeted Learning: Causal Inference for Observational and Experimental Data}.
 \newblock Springer, 2011.
-\newblock \url{https://doi.org/10.1007/978-1-4419-9782-1}.
 
 \bibitem[van~der Laan et~al.(2023)]{vdl2023adml}
 L.~van~der Laan, M.~Carone, A.~Luedtke, and M.~J. van~der Laan.
 \newblock Adaptive debiased machine learning using data-driven model selection techniques.
 \newblock \emph{arXiv preprint arXiv:2307.12544}, 2023.
-\newblock \url{https://arxiv.org/abs/2307.12544}.
 
 \end{thebibliography}
 
