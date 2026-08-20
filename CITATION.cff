@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the TDSC paper below."
+title: "Targeted Deep Survival Contrasts (TDSC)"
+authors:
+  - family-names: McCoy
+    given-names: David
+    affiliation: "Division of Biostatistics, University of California, Berkeley"
+  - family-names: Li
+    given-names: Yi
+    affiliation: "Division of Biostatistics, University of California, Berkeley"
+  - family-names: van der Laan
+    given-names: Mark J.
+    affiliation: "Division of Biostatistics, University of California, Berkeley"
+repository-code: "https://github.com/blind-contours/tdsc"
+license: MIT
+preferred-citation:
+  type: unpublished
+  title: "Targeted Deep Survival Contrasts: Valid Inference for Treatment-Specific Survival Benefit with Neural Networks"
+  authors:
+    - family-names: McCoy
+      given-names: David
+    - family-names: Li
+      given-names: Yi
+    - family-names: van der Laan
+      given-names: Mark J.
+  year: 2026
+  notes: "Working paper"
