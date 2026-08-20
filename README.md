@@ -21,7 +21,7 @@ last-layer gradients) serves the entire curve pair at once.
 
 📄 **Paper:** *Targeted Deep Survival Contrasts: Valid Inference for
 Treatment-Specific Survival Benefit with Neural Networks*
-(McCoy, Li & van der Laan) — [`paper/main.pdf`](paper/main.pdf).
+(McCoy & Li) — [`paper/main.pdf`](paper/main.pdf).
 Extends [Targeted Deep Architectures](https://arxiv.org/abs/2507.12435)
 (TDA) from single targets to a 2K-dimensional survival contrast.
 
@@ -169,7 +169,7 @@ nearly disjoint in diagnostic space (see figure above).
 @unpublished{mccoy2026tdsc,
   title  = {Targeted Deep Survival Contrasts: Valid Inference for
             Treatment-Specific Survival Benefit with Neural Networks},
-  author = {McCoy, David and Li, Yi and van der Laan, Mark J.},
+  author = {McCoy, David and Li, Yi},
   note   = {Working paper},
   year   = {2026}
 }
